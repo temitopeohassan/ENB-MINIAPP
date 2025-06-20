@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/Pausable.sol";
 
 /**
  * @title EnbMiniApp
- * @dev Smart contract for ENB token distribution with membership levels and daily check-ins
+ * @dev Smart contract for ENB token distribution with membership levels and unlimited check-ins
  * @dev Restricted to only allow interaction from a specific authorized address
  */
 contract EnbMiniApp is ReentrancyGuard, Pausable {
@@ -23,14 +23,14 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         bool exists;
         MembershipLevel membershipLevel;
         uint256 lastCheckinTime;
-        uint256 consecutiveCheckins;
+        uint256 totalCheckins;
         uint256 totalYieldClaimed;
         uint256 accountCreatedAt;
     }
     
     // Membership level configuration
     struct LevelConfig {
-        uint256 dailyYield;
+        uint256 checkinYield;
         uint256 upgradeRequirement;
         string name;
     }
@@ -39,13 +39,9 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
     mapping(address => UserAccount) public userAccounts;
     mapping(MembershipLevel => LevelConfig) public levelConfigs;
     
-    // Constants
-    uint256 public constant CHECKIN_COOLDOWN = 24 hours;
-    uint256 public constant MAX_MISSED_CHECKINS = 3;
-    
     // Events
     event AccountCreated(address indexed user, uint256 timestamp);
-    event DailyCheckin(address indexed user, uint256 yieldAmount, uint256 timestamp);
+    event CheckinCompleted(address indexed user, uint256 yieldAmount, uint256 timestamp);
     event MembershipUpgraded(address indexed user, MembershipLevel newLevel, uint256 timestamp);
     event YieldDistributed(address indexed user, uint256 amount, string transactionType);
     event ContractPaused(uint256 timestamp);
@@ -55,7 +51,6 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
     error UnauthorizedAccess();
     error AccountAlreadyExists();
     error AccountDoesNotExist();
-    error CheckinTooEarly();
     error InsufficientTokensForUpgrade();
     error InvalidMembershipLevel();
     error InsufficientContractBalance();
@@ -94,19 +89,19 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         
         // Initialize membership level configurations
         levelConfigs[MembershipLevel.Based] = LevelConfig({
-            dailyYield: 5 * 10**18, // 5 ENB tokens (assuming 18 decimals)
+            checkinYield: 5 * 10**18, // 5 ENB tokens (assuming 18 decimals)
             upgradeRequirement: 0,
             name: "Based"
         });
         
         levelConfigs[MembershipLevel.SuperBased] = LevelConfig({
-            dailyYield: 10 * 10**18, // 10 ENB tokens
+            checkinYield: 10 * 10**18, // 10 ENB tokens
             upgradeRequirement: 5000 * 10**18, // 5000 ENB tokens
             name: "Super Based"
         });
         
         levelConfigs[MembershipLevel.Legendary] = LevelConfig({
-            dailyYield: 15 * 10**18, // 15 ENB tokens
+            checkinYield: 15 * 10**18, // 15 ENB tokens
             upgradeRequirement: 15000 * 10**18, // 15000 ENB tokens
             name: "Legendary"
         });
@@ -125,7 +120,7 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
             exists: true,
             membershipLevel: MembershipLevel.Based,
             lastCheckinTime: 0,
-            consecutiveCheckins: 0,
+            totalCheckins: 0,
             totalYieldClaimed: 0,
             accountCreatedAt: block.timestamp
         });
@@ -134,37 +129,27 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
     }
     
     /**
-     * @dev Process daily check-in and distribute yield
+     * @dev Process check-in and distribute yield (no time restrictions)
      * @param user The user address to process check-in for
      */
-    function dailyCheckin(address user) external nonReentrant whenNotPaused onlyAuthorized notDeployer {
+    function checkin(address user) external nonReentrant whenNotPaused onlyAuthorized notDeployer {
         UserAccount storage account = userAccounts[user];
         
         if (!account.exists) {
             revert AccountDoesNotExist();
         }
         
-        if (block.timestamp < account.lastCheckinTime + CHECKIN_COOLDOWN) {
-            revert CheckinTooEarly();
-        }
-        
         // Calculate yield based on membership level
-        uint256 yieldAmount = levelConfigs[account.membershipLevel].dailyYield;
+        uint256 yieldAmount = levelConfigs[account.membershipLevel].checkinYield;
         
         // Check if contract has sufficient balance
         if (enbToken.balanceOf(address(this)) < yieldAmount) {
             revert InsufficientContractBalance();
         }
         
-        // Update consecutive checkins
-        if (block.timestamp <= account.lastCheckinTime + CHECKIN_COOLDOWN + (MAX_MISSED_CHECKINS * 24 hours)) {
-            account.consecutiveCheckins++;
-        } else {
-            account.consecutiveCheckins = 1; // Reset streak
-        }
-        
         // Update account
         account.lastCheckinTime = block.timestamp;
+        account.totalCheckins++;
         account.totalYieldClaimed += yieldAmount;
         
         // Distribute tokens
@@ -173,8 +158,8 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
             revert TransferFailed();
         }
         
-        emit DailyCheckin(user, yieldAmount, block.timestamp);
-        emit YieldDistributed(user, yieldAmount, "daily_yield");
+        emit CheckinCompleted(user, yieldAmount, block.timestamp);
+        emit YieldDistributed(user, yieldAmount, "checkin_yield");
     }
     
     /**
@@ -218,7 +203,7 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
      * @return exists Whether account exists
      * @return membershipLevel Current membership level
      * @return lastCheckinTime Timestamp of last check-in
-     * @return consecutiveCheckins Number of consecutive check-ins
+     * @return totalCheckins Total number of check-ins
      * @return totalYieldClaimed Total yield claimed
      * @return accountCreatedAt Account creation timestamp
      */
@@ -226,7 +211,7 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         bool exists,
         MembershipLevel membershipLevel,
         uint256 lastCheckinTime,
-        uint256 consecutiveCheckins,
+        uint256 totalCheckins,
         uint256 totalYieldClaimed,
         uint256 accountCreatedAt
     ) {
@@ -235,41 +220,19 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
             account.exists,
             account.membershipLevel,
             account.lastCheckinTime,
-            account.consecutiveCheckins,
+            account.totalCheckins,
             account.totalYieldClaimed,
             account.accountCreatedAt
         );
     }
     
     /**
-     * @dev Calculate daily yield for a membership level
+     * @dev Calculate yield per check-in for a membership level
      * @param level The membership level
-     * @return The daily yield amount
+     * @return The yield amount per check-in
      */
-    function calculateDailyYield(MembershipLevel level) external view returns (uint256) {
-        return levelConfigs[level].dailyYield;
-    }
-    
-    /**
-     * @dev Check if user is eligible for daily check-in
-     * @param user The wallet address to check
-     * @return eligible Whether user can check in
-     * @return timeUntilNext Time until next check-in is available
-     */
-    function validateCheckinEligibility(address user) external view returns (bool eligible, uint256 timeUntilNext) {
-        UserAccount storage account = userAccounts[user];
-        
-        if (!account.exists) {
-            return (false, 0);
-        }
-        
-        uint256 nextCheckinTime = account.lastCheckinTime + CHECKIN_COOLDOWN;
-        
-        if (block.timestamp >= nextCheckinTime) {
-            return (true, 0);
-        } else {
-            return (false, nextCheckinTime - block.timestamp);
-        }
+    function calculateCheckinYield(MembershipLevel level) external view returns (uint256) {
+        return levelConfigs[level].checkinYield;
     }
     
     /**
@@ -309,6 +272,15 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
      */
     function getLastCheckinTime(address user) external view returns (uint256) {
         return userAccounts[user].lastCheckinTime;
+    }
+    
+    /**
+     * @dev Get the total number of check-ins for a user
+     * @param user The wallet address
+     * @return The total number of check-ins
+     */
+    function getTotalCheckins(address user) external view returns (uint256) {
+        return userAccounts[user].totalCheckins;
     }
     
     /**

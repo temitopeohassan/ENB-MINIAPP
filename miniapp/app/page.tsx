@@ -10,6 +10,7 @@ import { Icon } from "./components/Icon";
 import { Account } from "./components/Account";
 import { useAccount, useConnect } from "wagmi";
 import { farcasterFrame } from '@farcaster/frame-wagmi-connector';
+import Image from "next/image";
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
@@ -95,39 +96,42 @@ export default function App() {
     }
   }, [connect, frameConnector]);
 
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   return (
     <div className="flex flex-col min-h-screen font-sans text-[var(--app-foreground)] mini-app-theme from-[var(--app-background)] to-[var(--app-gray)]">
-      <div className="w-full max-w-md mx-auto px-4 py-3">
-        <header className="flex justify-between items-center mb-3 h-11">
-          <div>
-            <div className="flex items-center space-x-2">
-              {isConnected ? (
-                <div className="flex items-center space-x-2">
-                  <div className="text-sm font-medium">
-                    {address?.slice(0, 6)}...{address?.slice(-4)}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => connect({ connector: frameConnector })}
-                  >
-                    Disconnect
-                  </Button>
-                </div>
-              ) : (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleConnect}
-                >
-                  Connect Wallet
-                </Button>
-              )}
-            </div>
+      {/* Fixed Header */}
+      <header className="fixed top-0 left-0 right-0 bg-[var(--app-background)] border-b border-[var(--app-gray)] z-50">
+        <div className="w-full max-w-md mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center space-x-3">
+            <Image
+              src="/logo.png"
+              alt="ENB Mini App Logo"
+              width={40}
+              height={40}
+              className="rounded-lg"
+            />
+            <h1 className="text-xl font-bold">ENB MINI APP</h1>
           </div>
-          <div>{saveFrameButton}</div>
-        </header>
+          
+          <div className="flex items-center space-x-2">
+            {saveFrameButton}
+          </div>
 
+          {address && (
+            <div className="flex items-center space-x-2">
+              <div className="px-3 py-1.5 bg-[var(--app-gray)] rounded-full text-sm font-medium">
+                {truncateAddress(address)}
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* Main Content with top padding for fixed header */}
+      <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
         <main className="flex-1">
           <Account />
         </main>
