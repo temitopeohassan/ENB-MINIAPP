@@ -6,11 +6,13 @@ import mockData from '../mockData.json';
 
 interface UserProfile {
   walletAddress: string;
-  membershipLevel: 'Based' | 'Super Based' | 'Legendary';
+  membershipLevel: string; // allow any string from mockData
   enbBalance: number;
   lastCheckinTime?: string;
   consecutiveDays: number;
   totalEarned: number;
+  username?: string;
+  joinDate?: string;
 }
 
 const DEFAULT_WALLET = '0x1234567890abcdef1234567890abcdef12345678';
@@ -96,12 +98,6 @@ export function Account() {
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-xl font-semibold mb-2 text-gray-800">Account Profile</h1>
-
-      {isDefaultProfile && (
-        <p className="text-sm text-orange-600 mb-4">
-          Showing default profile. Connect your wallet to see your own data.
-        </p>
-      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Basic Info */}
