@@ -6,9 +6,9 @@ import mockData from '../mockData.json';
 
 interface UserProfile {
   walletAddress: string;
-  membershipLevel: string; // allow any string from mockData
+  membershipLevel: 'Based' | 'Super Based' | 'Legendary' | string;
   enbBalance: number;
-  lastCheckinTime?: string;
+  lastCheckinTime?: string | null;
   consecutiveDays: number;
   totalEarned: number;
   username?: string;
