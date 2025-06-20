@@ -69,6 +69,10 @@ Yap about this miniapp on coinbasewallet and tag coinbasewallet plus enb account
 
 Yap about this ai agent on incubase and tag incubase plus enb accoount, streak of 7 days - +20.0x and extra 100 enb added for your yield per day.
 
+Add your base name as your name on twitter - +15.0x
+
+ADD what what you do for base or how you are connected with base in your bio - +15.0x 
+
 Feature 5: 
 
 Allow enb fams to be able to claim their basename with enb tokens but on the backend it will be swaped for base eth.
