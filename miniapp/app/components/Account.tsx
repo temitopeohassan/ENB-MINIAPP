@@ -35,7 +35,6 @@ export function Account() {
 
     if (user) {
       setUserProfile(user);
-      setIsDefaultProfile(walletToUse.toLowerCase() === DEFAULT_WALLET.toLowerCase());
     } else {
       const fallbackUser = mockData.users.find(
         (u) => u.walletAddress.toLowerCase() === DEFAULT_WALLET.toLowerCase()
