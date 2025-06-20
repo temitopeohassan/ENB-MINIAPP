@@ -87,14 +87,14 @@ export default function App() {
     return null;
   }, [context, frameAdded, handleAddFrame]);
 
-  const handleConnect = useCallback(async () => {
-    try {
-      console.log("Connecting wallet...");
-      await connect({ connector: frameConnector });
-    } catch (error) {
-      console.error("Connection failed:", error);
-    }
-  }, [connect, frameConnector]);
+//  const handleConnect = useCallback(async () => {
+  //  try {
+    //  console.log("Connecting wallet...");
+     // await connect({ connector: frameConnector });
+    //} catch (error) {
+     // console.error("Connection failed:", error);
+   // }
+//  }, [connect, frameConnector]); //
 
   const truncateAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;

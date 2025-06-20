@@ -91,7 +91,7 @@ export function Account() {
     );
   }
 
-  const levelInfo = mockData.membershipLevels[userProfile.membershipLevel];
+//  const levelInfo = mockData.membershipLevels[userProfile.membershipLevel]; //
 
   return (
     <div className="space-y-6 animate-fade-in">
