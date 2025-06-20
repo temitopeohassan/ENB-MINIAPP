@@ -68,3 +68,7 @@ Add this miniapp - +20.0x and extra 10enb added for your yield per day.
 Yap about this miniapp on coinbasewallet and tag coinbasewallet plus enb account - +20.0x and extra 50 end added for your yield per day
 
 Yap about this ai agent on incubase and tag incubase plus enb accoount - +20.0x and extra 100 enb added for your yield per day.
+
+Feature 5: 
+
+Allow enb fams to be able to claim their basename with enb tokens but on the backend it will be swaped for base eth.
