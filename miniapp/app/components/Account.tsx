@@ -21,6 +21,7 @@ export function Account() {
   const { address, isConnected } = useAccount();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isDefaultProfile, setIsDefaultProfile] = useState(false);
 
   useEffect(() => {
     let walletToUse = DEFAULT_WALLET;
@@ -35,6 +36,7 @@ export function Account() {
 
     if (user) {
       setUserProfile(user);
+      setIsDefaultProfile(walletToUse.toLowerCase() === DEFAULT_WALLET.toLowerCase());
     } else {
       const fallbackUser = mockData.users.find(
         (u) => u.walletAddress.toLowerCase() === DEFAULT_WALLET.toLowerCase()
@@ -96,6 +98,12 @@ export function Account() {
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-xl font-semibold mb-2 text-gray-800">Account Profile</h1>
+
+      {isDefaultProfile && (
+        <p className="text-sm text-orange-600 mb-4">
+          .
+        </p>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Basic Info */}
