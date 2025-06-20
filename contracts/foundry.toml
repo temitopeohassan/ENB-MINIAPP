@@ -1,0 +1,80 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@forge-std/=lib/forge-std/src/"
+]
+
+# Solidity compiler settings
+solc_version = "0.8.20"
+evm_version = "london"
+optimizer = true
+optimizer_runs = 200
+via_ir = false
+
+# Base chain configuration
+[rpc_endpoints]
+base = "${BASE_RPC_URL}"
+base-sepolia = "https://sepolia.base.org"
+base-mainnet = "https://mainnet.base.org"
+
+# Etherscan configuration for verification
+[etherscan]
+base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
+base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
+
+# Gas configuration for Base
+[profile.default.model_checker]
+contracts = { "src/EnbMiniApp.sol" = ["EnbMiniApp"] }
+
+# Base chain specific settings
+[profile.base]
+optimizer = true
+optimizer_runs = 1000
+# Base uses lower gas limits
+gas_limit = 30000000
+gas_price = 1000000000  # 1 gwei
+
+# Test configuration
+[profile.test]
+optimizer = false
+fuzz_runs = 1000
+
+# Script configuration
+[profile.script]
+optimizer = true
+optimizer_runs = 200
+
+# Coverage configuration
+[profile.coverage]
+optimizer = false
+
+# Deployment profiles
+[profile.production]
+optimizer = true
+optimizer_runs = 1000
+via_ir = true
+
+[profile.local]
+optimizer = false
+
+# Auto-detect dependencies
+auto_detect_solc = false
+
+# Cache settings
+cache = true
+cache_path = "cache"
+force = false
+
+# Formatter settings
+[fmt]
+line_length = 100
+tab_width = 4
+bracket_spacing = true
+int_types = "long"
+
+# Gas reporting
+gas_reports = ["*"]
+gas_reports_ignore = ["tests/**/*"]
