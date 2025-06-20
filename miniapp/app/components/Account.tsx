@@ -21,7 +21,6 @@ export function Account() {
   const { address, isConnected } = useAccount();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isDefaultProfile, setIsDefaultProfile] = useState(false);
 
   useEffect(() => {
     let walletToUse = DEFAULT_WALLET;
