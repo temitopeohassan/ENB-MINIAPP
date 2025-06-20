@@ -1,5 +1,5 @@
 # ENB-MINIAPP
-Firs product from enb to serve as a catalyst for onboarding.
+First product from enb to serve as a catalyst for onboarding.
 
 - Figma design: https://www.figma.com/design/ANalZs4Vr1l6W9LbOIm0H2/ENB?node-id=84-5
 
@@ -27,3 +27,44 @@ Weekly tasks and the more they do  the more  there Based Point increase and thes
 
 Feature  #3
 Our. Mascot pfp changes according to how much based point You have
+
+Feature  #4 
+Boosters functionality
+
+- based boosters - this can be 
+
+claim streak for 7 days gives you - +1.0x 
+
+Daily Tweet.
+Tweet about us daily - +1.0x
+
+Daily check-in
+7 day streak for daily check-in - +1.0x
+
+Post streak
+7days post streak - +1.0x
+
+
+
+- superbased boosters
+
+Connect twitter - +2.0x
+
+Complete profile - +2.0x
+
+Enable miniapp notificatios - +2.0x
+
+Invite 50 Friends - +10.0x 
+
+ENB Token Holder - +3.0x
+Hold 5000 or more ENB tokens
+
+- legendary boosters
+ 
+Claim your basenames - +10.0x
+
+Add this miniapp - +20.0x and extra 10enb added for your yield per day.
+
+Yap about this miniapp on coinbasewallet and tag coinbasewallet plus enb account - +20.0x and extra 50 end added for your yield per day
+
+Yap about this ai agent on incubase and tag incubase plus enb accoount - +20.0x and extra 100 enb added for your yield per day.
