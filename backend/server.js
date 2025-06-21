@@ -11,6 +11,10 @@ import crypto from 'crypto';
 dotenv.config();
 
 // Firebase Admin SDK initialization
+if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  console.error('FATAL ERROR: FIREBASE_SERVICE_ACCOUNT_JSON is not defined. Please check your .env file or environment variables.');
+  process.exit(1);
+}
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
 
 initializeApp({
@@ -24,6 +28,19 @@ const PORT = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
+
+// Configure CORS with specific options
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://enb-crushers.vercel.app'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  credentials: false,
+  maxAge: 86400
+}));
 
 // Function to generate random invitation code
 const generateInvitationCode = () => {
