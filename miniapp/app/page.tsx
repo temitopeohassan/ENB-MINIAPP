@@ -8,15 +8,36 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
 import { Account } from "./components/Account";
+import { Create } from "./components/Create";
 import { useAccount, useConnect } from "wagmi";
 import { farcasterFrame } from '@farcaster/frame-wagmi-connector';
 import Image from "next/image";
+import { API_BASE_URL } from './config';
+
+interface User {
+  id: string;
+  walletAddress: string;
+  membershipLevel: string;
+  invitationCode: string | null;
+  enbBalance: number;
+  totalEarned: number;
+  consecutiveDays: number;
+  isActivated: boolean;
+  createdAt: string;
+  activatedAt?: string;
+  lastCheckIn?: string;
+}
 
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
   const { isConnected, address } = useAccount();
   const { connect } = useConnect();
+
+  // New state for user account checking
+  const [userAccount, setUserAccount] = useState<User | null>(null);
+  const [isLoadingAccount, setIsLoadingAccount] = useState(false);
+  const [accountCheckComplete, setAccountCheckComplete] = useState(false);
 
   const { addFrame } = useAddFrame();
 
@@ -43,6 +64,70 @@ export default function App() {
     };
     autoConnect();
   }, [isConnected, connect, frameConnector]);
+
+  // Check if user has an account when wallet connects
+  useEffect(() => {
+    const checkUserAccount = async () => {
+      if (!address) {
+        setUserAccount(null);
+        setAccountCheckComplete(true);
+        return;
+      }
+
+      setIsLoadingAccount(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/users?limit=1000`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch users');
+        }
+
+        const data = await response.json();
+        const user = data.users.find((u: User) => 
+          u.walletAddress.toLowerCase() === address.toLowerCase()
+        );
+
+        setUserAccount(user || null);
+      } catch (error) {
+        console.error('Error checking user account:', error);
+        setUserAccount(null);
+      } finally {
+        setIsLoadingAccount(false);
+        setAccountCheckComplete(true);
+      }
+    };
+
+    checkUserAccount();
+  }, [address]);
+
+  // Function to refresh user account check (for after activation)
+  const refreshUserAccountAction = useCallback(async () => {
+    if (!address) return;
+
+    setIsLoadingAccount(true);
+    setAccountCheckComplete(false);
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/users?limit=1000`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch users');
+      }
+
+      const data = await response.json();
+      const user = data.users.find((u: User) => 
+        u.walletAddress.toLowerCase() === address.toLowerCase()
+      );
+
+      setUserAccount(user || null);
+    } catch (error) {
+      console.error('Error checking user account:', error);
+      setUserAccount(null);
+    } finally {
+      setIsLoadingAccount(false);
+      setAccountCheckComplete(true);
+    }
+  }, [address]);
 
   const handleAddFrame = useCallback(async () => {
     try {
@@ -87,17 +172,38 @@ export default function App() {
     return null;
   }, [context, frameAdded, handleAddFrame]);
 
-//  const handleConnect = useCallback(async () => {
-  //  try {
-    //  console.log("Connecting wallet...");
-     // await connect({ connector: frameConnector });
-    //} catch (error) {
-     // console.error("Connection failed:", error);
-   // }
-//  }, [connect, frameConnector]); //
-
   const truncateAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Determine which component to render
+  const renderMainComponent = () => {
+    if (!accountCheckComplete || isLoadingAccount) {
+      return (
+        <div className="flex justify-center items-center py-20">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </div>
+      );
+    }
+
+    if (!isConnected || !address) {
+      return (
+        <div className="flex justify-center items-center py-20">
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">Please connect your wallet to continue</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </div>
+      );
+    }
+
+    // If user has an account and it's activated, show Account component
+    if (userAccount && userAccount.isActivated) {
+      return <Account />;
+    }
+
+    // If user has an account but it's not activated, or doesn't have an account, show Create component
+    return <Create refreshUserAccountAction={refreshUserAccountAction} />;
   };
 
   return (
@@ -133,7 +239,7 @@ export default function App() {
       {/* Main Content with top padding for fixed header */}
       <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
         <main className="flex-1">
-          <Account />
+          {renderMainComponent()}
         </main>
 
         <footer className="mt-2 pt-4 flex justify-center">
