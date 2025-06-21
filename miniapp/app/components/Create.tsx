@@ -2,20 +2,16 @@
 
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
-import { createWalletClient, custom } from 'viem';
-import { mainnet } from 'viem/chains';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
 
-// Divvi configuration
-const DIVVI_CONSUMER = '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44'; // Your Divvi Identifier
-const DIVVI_PROVIDERS = [
-  '0x0423189886d7966f0dd7e7d256898daeee625dca',
-  '0xc95876688026be9effa2bb'
-]; // Array of campaigns you signed up for
-
 interface CreateProps {
   refreshUserAccountAction: () => Promise<void>;
+}
+
+interface User {
+  walletAddress: string;
+  isActivated: boolean;
 }
 
 export function Create({ refreshUserAccountAction }: CreateProps) {
@@ -41,7 +37,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         
         if (response.ok) {
           const data = await response.json();
-          const user = data.users.find((u: any) => 
+          const user = data.users.find((u: User) => 
             u.walletAddress.toLowerCase() === address.toLowerCase()
           );
 
@@ -67,14 +63,8 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     }
 
     try {
-      // Step 1: Create wallet client
-      const walletClient = createWalletClient({
-        chain: mainnet,
-        transport: custom((window as any).ethereum),
-      });
-
-      // Step 2: Send transaction
-      const tx = await writeContractAsync({
+      // Send transaction
+      const txHash = await writeContractAsync({
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
@@ -82,12 +72,6 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       });
 
       alert('Transaction sent. Waiting for confirmation...');
-      
-      // Wait for transaction confirmation
-      const receipt = await tx;
-
-      // Step 3: Get chain ID
-      const chainId = await walletClient.getChainId();
 
       // Continue with backend sync
       const response = await fetch(`${API_BASE_URL}/api/create-account`, {
@@ -95,7 +79,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           walletAddress: address,
-          transactionHash: receipt,
+          transactionHash: txHash,
         }),
       });
 
@@ -143,9 +127,10 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       setTimeout(async () => {
         await refreshUserAccountAction();
       }, 2000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Activation error:', err);
-      alert(err.message || 'Failed to activate account');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to activate account';
+      alert(errorMessage);
     } finally {
       setIsActivating(false);
     }
