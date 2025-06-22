@@ -28,16 +28,23 @@ interface User {
   lastCheckIn?: string;
 }
 
+interface ApiError {
+  error: string;
+  message?: string;
+}
+
+type ProfileState = 'loading' | 'not-found' | 'found' | 'error';
+
 export default function App() {
   const { setFrameReady, isFrameReady, context } = useMiniKit();
   const [frameAdded, setFrameAdded] = useState(false);
   const { isConnected, address } = useAccount();
   const { connect } = useConnect();
 
-  // New state for user account checking
-  const [userAccount, setUserAccount] = useState<User | null>(null);
-  const [isLoadingAccount, setIsLoadingAccount] = useState(false);
-  const [accountCheckComplete, setAccountCheckComplete] = useState(false);
+  // Simplified state management
+  const [userProfile, setUserProfile] = useState<User | null>(null);
+  const [profileState, setProfileState] = useState<ProfileState>('loading');
+  const [apiError, setApiError] = useState<string | null>(null);
 
   const { addFrame } = useAddFrame();
 
@@ -65,69 +72,70 @@ export default function App() {
     autoConnect();
   }, [isConnected, connect, frameConnector]);
 
-  // Check if user has an account when wallet connects
-  useEffect(() => {
-    const checkUserAccount = async () => {
-      if (!address) {
-        setUserAccount(null);
-        setAccountCheckComplete(true);
+  // Fetch user profile when wallet connects
+  const fetchUserProfile = useCallback(async (walletAddress: string) => {
+    if (!walletAddress) {
+      setUserProfile(null);
+      setProfileState('not-found');
+      setApiError(null);
+      return;
+    }
+
+    setProfileState('loading');
+    setApiError(null);
+
+    try {
+      console.log(`Fetching profile for wallet: ${walletAddress}`);
+      
+      const response = await fetch(`${API_BASE_URL}/api/profile/${walletAddress}`);
+      
+      if (response.status === 404) {
+        // User profile doesn't exist
+        console.log('User profile not found');
+        setUserProfile(null);
+        setProfileState('not-found');
         return;
       }
-
-      setIsLoadingAccount(true);
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/users?limit=1000`);
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch users');
-        }
-
-        const data = await response.json();
-        const user = data.users.find((u: User) => 
-          u.walletAddress.toLowerCase() === address.toLowerCase()
-        );
-
-        setUserAccount(user || null);
-      } catch (error) {
-        console.error('Error checking user account:', error);
-        setUserAccount(null);
-      } finally {
-        setIsLoadingAccount(false);
-        setAccountCheckComplete(true);
-      }
-    };
-
-    checkUserAccount();
-  }, [address]);
-
-  // Function to refresh user account check (for after activation)
-  const refreshUserAccountAction = useCallback(async () => {
-    if (!address) return;
-
-    setIsLoadingAccount(true);
-    setAccountCheckComplete(false);
-    
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/users?limit=1000`);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        // Other HTTP errors
+        const errorData: ApiError = await response.json().catch(() => ({ 
+          error: `HTTP ${response.status}` 
+        }));
+        throw new Error(errorData.message || errorData.error || 'Failed to fetch profile');
       }
 
-      const data = await response.json();
-      const user = data.users.find((u: User) => 
-        u.walletAddress.toLowerCase() === address.toLowerCase()
-      );
+      const profileData: User = await response.json();
+      console.log('Profile data received:', profileData);
+      
+      setUserProfile(profileData);
+      setProfileState('found');
 
-      setUserAccount(user || null);
     } catch (error) {
-      console.error('Error checking user account:', error);
-      setUserAccount(null);
-    } finally {
-      setIsLoadingAccount(false);
-      setAccountCheckComplete(true);
+      console.error('Error fetching user profile:', error);
+      setApiError(error instanceof Error ? error.message : 'Unknown error occurred');
+      setUserProfile(null);
+      setProfileState('error');
     }
-  }, [address]);
+  }, []);
+
+  // Effect to fetch profile when address changes
+  useEffect(() => {
+    if (address) {
+      fetchUserProfile(address);
+    } else {
+      setUserProfile(null);
+      setProfileState('loading');
+      setApiError(null);
+    }
+  }, [address, fetchUserProfile]);
+
+  // Refresh function for after account creation/activation
+  const refreshUserProfile = useCallback(async () => {
+    if (address) {
+      await fetchUserProfile(address);
+    }
+  }, [address, fetchUserProfile]);
 
   const handleAddFrame = useCallback(async () => {
     try {
@@ -176,34 +184,73 @@ export default function App() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Determine which component to render
+  // Determine which component to render based on state
   const renderMainComponent = () => {
-    if (!accountCheckComplete || isLoadingAccount) {
-      return (
-        <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      );
-    }
-
+    // Still connecting wallet
     if (!isConnected || !address) {
       return (
         <div className="flex justify-center items-center py-20">
           <div className="text-center">
-            <p className="text-gray-600 mb-4">Please connect your wallet to continue</p>
+            <p className="text-gray-600 mb-4">Connecting wallet...</p>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           </div>
         </div>
       );
     }
 
-    // If user has an account and it's activated, show Account component
-    if (userAccount && userAccount.isActivated) {
-      return <Account />;
+    // Loading profile data
+    if (profileState === 'loading') {
+      return (
+        <div className="flex justify-center items-center py-20">
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">Loading profile...</p>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          </div>
+        </div>
+      );
     }
 
-    // If user has an account but it's not activated, or doesn't have an account, show Create component
-    return <Create refreshUserAccountAction={refreshUserAccountAction} />;
+    // API Error occurred
+    if (profileState === 'error') {
+      return (
+        <div className="flex justify-center items-center py-20">
+          <div className="text-center">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-sm mx-auto">
+              <Icon name="alert-circle" size="lg" className="text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-red-800 mb-2">Error Loading Profile</h3>
+              <p className="text-red-600 text-sm mb-4">{apiError}</p>
+              <Button 
+                onClick={() => fetchUserProfile(address)} 
+                variant="ghost" 
+                size="sm"
+                className="text-red-600 hover:text-red-700"
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Profile found and activated - show Account component
+    if (profileState === 'found' && userProfile && userProfile.isActivated) {
+      console.log('Rendering Account component - user is activated');
+      return <Account userProfile={userProfile} />;
+    }
+
+    // Profile not found OR profile found but not activated - show Create component
+    console.log('Rendering Create component', {
+      profileState,
+      userProfile: userProfile ? { ...userProfile, isActivated: userProfile.isActivated } : null
+    });
+    
+    return (
+      <Create 
+        existingProfile={userProfile}
+        refreshUserProfile={refreshUserProfile}
+      />
+    );
   };
 
   return (
@@ -231,6 +278,12 @@ export default function App() {
               <div className="px-3 py-1.5 bg-[var(--app-gray)] rounded-full text-sm font-medium">
                 {truncateAddress(address)}
               </div>
+              {/* Optional: Show profile status indicator */}
+              {profileState === 'found' && userProfile && (
+                <div className={`w-2 h-2 rounded-full ${
+                  userProfile.isActivated ? 'bg-green-500' : 'bg-yellow-500'
+                }`} title={userProfile.isActivated ? 'Activated' : 'Not Activated'} />
+              )}
             </div>
           )}
         </div>

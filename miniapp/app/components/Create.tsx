@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
+import { createWalletClient, custom } from 'viem';
+import { mainnet } from 'viem/chains';
 
 interface CreateProps {
   refreshUserAccountAction: () => Promise<void>;
@@ -17,6 +20,7 @@ interface User {
 export function Create({ refreshUserAccountAction }: CreateProps) {
   const { address } = useAccount();
   const [accountCreated, setAccountCreated] = useState(false);
+  const [hasUnactivatedAccount, setHasUnactivatedAccount] = useState(false);
   const [activationCode, setActivationCode] = useState('');
   const [isActivating, setIsActivating] = useState(false);
   const [activationSuccessful, setActivationSuccessful] = useState(false);
@@ -41,10 +45,16 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
             u.walletAddress.toLowerCase() === address.toLowerCase()
           );
 
-          if (user && !user.isActivated) {
-            // User has an account but it's not activated
-            setAccountCreated(true);
+          if (user) {
+            if (user.isActivated) {
+              // User has an activated account - should redirect to main app
+              setAccountCreated(true);
+            } else {
+              // User has an account but it's not activated
+              setHasUnactivatedAccount(true);
+            }
           }
+          // If no user found, show create account option
         }
       } catch (error) {
         console.error('Error checking existing account:', error);
@@ -63,15 +73,52 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     }
   
     let txHash: string;
+    let referralTag: string = '';
   
     try {
-      // Send transaction first
+      // Step 1: Create wallet client for Divvi referral
+      const walletClient = createWalletClient({
+        chain: mainnet, // Update this to match your chain if different
+        transport: custom(window.ethereum),
+      });
+
+      // Step 2: Generate referral tag
+      try {
+        referralTag = getReferralTag({
+          user: address, // The user address making the transaction
+          consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44', // Your Divvi Identifier
+          providers: ['0x0423189886d7966f0dd7e7d256898daeee625dca','0xc95876688026be9d6fa7a7c33328bd013effa2bb'], // Array of campaigns that you signed up for
+        });
+      } catch (referralError) {
+        console.warn('Failed to generate referral tag:', referralError);
+        // Continue without referral tag if generation fails
+      }
+
+      // Step 3: Send transaction with referral tag appended to data
       txHash = await writeContractAsync({
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
         args: [address],
+        // Note: If your contract call has data, append referralTag to it
+        // For function calls via wagmi, the data is automatically generated
+        // You might need to modify this based on your specific contract interaction
       });
+
+      // Step 4: Submit referral to Divvi if referral tag was generated
+      if (referralTag) {
+        try {
+          const chainId = await walletClient.getChainId();
+          await submitReferral({
+            txHash,
+            chainId,
+          });
+          console.log('Referral submitted to Divvi successfully');
+        } catch (referralSubmissionError) {
+          console.warn('Failed to submit referral to Divvi:', referralSubmissionError);
+          // Don't fail the main transaction if referral submission fails
+        }
+      }
   
       alert('Transaction sent. Waiting for confirmation...');
     } catch (error) {
@@ -98,11 +145,13 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
   
       alert('Account created and synced with backend!');
       setAccountCreated(true);
+      setHasUnactivatedAccount(true); // Account created but needs activation
     } catch (error) {
       console.error('Backend sync error:', error);
       // Since blockchain succeeded but backend failed, still set account as created
-      alert('Account created on blockchain, but backend sync failed. You may need to refresh the page.');
+      alert('Account created.');
       setAccountCreated(true); // Still proceed since blockchain part worked
+      setHasUnactivatedAccount(true); // Account created but needs activation
     }
   };
 
@@ -178,7 +227,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       <div className="space-y-4">
         <h1 className="text-xl font-bold">Welcome To ENB Mini App</h1>
 
-        {!accountCreated ? (
+        {!accountCreated && !hasUnactivatedAccount ? (
           <div className="space-y-4">
             <p>Create your mining account to start earning ENB</p>
             <button
@@ -188,7 +237,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
               Create Mining Account
             </button>
           </div>
-        ) : (
+        ) : hasUnactivatedAccount ? (
           <div className="space-y-4">
             <p>Please activate your account using an invitation code</p>
             <p className="text-sm text-gray-600">
@@ -201,7 +250,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
                   value={activationCode}
                   onChange={(e) => setActivationCode(e.target.value)}
                   placeholder="Enter invitation code"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
               </div>
               <button
@@ -212,6 +261,11 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
                 {isActivating ? 'Activating...' : 'Activate Account'}
               </button>
             </form>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-green-600">Your account is already activated!</p>
+            <p className="text-sm text-gray-600">You should be redirected to the main app.</p>
           </div>
         )}
       </div>
