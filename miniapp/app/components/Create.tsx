@@ -115,7 +115,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         try {
           walletClient = createWalletClient({
             chain: mainnet,
-            transport: custom(window.ethereum as any),
+            transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider),
           });
 
           // Step 2: Generate referral tag
