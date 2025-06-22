@@ -4,9 +4,20 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
-import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
 import { createWalletClient, custom } from 'viem';
 import { mainnet } from 'viem/chains';
+
+// Type-safe import with fallback
+let getReferralTag: any = null;
+let submitReferral: any = null;
+
+try {
+  const divviSdk = require('@divvi/referral-sdk');
+  getReferralTag = divviSdk.getReferralTag;
+  submitReferral = divviSdk.submitReferral;
+} catch (error) {
+  console.warn('Divvi SDK not available:', error);
+}
 
 interface CreateProps {
   refreshUserAccountAction: () => Promise<void>;
@@ -76,37 +87,46 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     let referralTag: string = '';
   
     try {
-      // Step 1: Create wallet client for Divvi referral
-      const walletClient = createWalletClient({
-        chain: mainnet, // Update this to match your chain if different
-        transport: custom(window.ethereum),
-      });
+      // Step 1: Create wallet client for Divvi referral (if available)
+      let walletClient = null;
+      if (getReferralTag && submitReferral) {
+        try {
+          walletClient = createWalletClient({
+            chain: mainnet,
+            transport: custom(window.ethereum),
+          });
 
-      // Step 2: Generate referral tag
-      try {
-        referralTag = getReferralTag({
-          user: address, // The user address making the transaction
-          consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44', // Your Divvi Identifier
-          providers: ['0x0423189886d7966f0dd7e7d256898daeee625dca','0xc95876688026be9d6fa7a7c33328bd013effa2bb'], // Array of campaigns that you signed up for
-        });
-      } catch (referralError) {
-        console.warn('Failed to generate referral tag:', referralError);
-        // Continue without referral tag if generation fails
+          // Step 2: Generate referral tag
+          referralTag = getReferralTag({
+            user: address, // The user address making the transaction
+            consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44', // Your Divvi Identifier
+            providers: ['0x0423189886d7966f0dd7e7d256898daeee625dca','0xc95876688026be9d6fa7a7c33328bd013effa2bb'], // Array of campaigns that you signed up for
+          });
+        } catch (referralError) {
+          console.warn('Failed to generate referral tag:', referralError);
+          // Continue without referral tag if generation fails
+        }
+      } else {
+        console.warn('Divvi SDK not available, continuing without referral tracking');
       }
 
-      // Step 3: Send transaction with referral tag appended to data
-      txHash = await writeContractAsync({
+      // Step 3: Send transaction
+      const contractArgs: any = {
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
         args: [address],
-        // Note: If your contract call has data, append referralTag to it
-        // For function calls via wagmi, the data is automatically generated
-        // You might need to modify this based on your specific contract interaction
-      });
+      };
 
-      // Step 4: Submit referral to Divvi if referral tag was generated
+      // Add referral tag as dataSuffix if available
       if (referralTag) {
+        contractArgs.dataSuffix = `0x${referralTag}`;
+      }
+
+      txHash = await writeContractAsync(contractArgs);
+
+      // Step 4: Submit referral to Divvi if available and referral tag was generated
+      if (referralTag && submitReferral && walletClient) {
         try {
           const chainId = await walletClient.getChainId();
           await submitReferral({
