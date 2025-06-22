@@ -7,17 +7,37 @@ import { API_BASE_URL } from '../config';
 import { createWalletClient, custom } from 'viem';
 import { mainnet } from 'viem/chains';
 
-// Type-safe import with fallback
-let getReferralTag: any = null;
-let submitReferral: any = null;
-
-try {
-  const divviSdk = require('@divvi/referral-sdk');
-  getReferralTag = divviSdk.getReferralTag;
-  submitReferral = divviSdk.submitReferral;
-} catch (error) {
-  console.warn('Divvi SDK not available:', error);
+// Type definitions for Divvi SDK
+interface ReferralTagParams {
+  user: string;
+  consumer: string;
+  providers: string[];
 }
+
+interface SubmitReferralParams {
+  txHash: string;
+  chainId: number;
+}
+
+type GetReferralTagFunction = (params: ReferralTagParams) => string;
+type SubmitReferralFunction = (params: SubmitReferralParams) => Promise<void>;
+
+// Dynamic import with proper typing
+let getReferralTag: GetReferralTagFunction | null = null;
+let submitReferral: SubmitReferralFunction | null = null;
+
+// Async function to load Divvi SDK
+const loadDivviSDK = async () => {
+  try {
+    const divviModule = await import('@divvi/referral-sdk');
+    getReferralTag = divviModule.getReferralTag;
+    submitReferral = divviModule.submitReferral;
+    return true;
+  } catch (error) {
+    console.warn('Divvi SDK not available:', error);
+    return false;
+  }
+};
 
 interface CreateProps {
   refreshUserAccountAction: () => Promise<void>;
@@ -87,13 +107,15 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     let referralTag: string = '';
   
     try {
-      // Step 1: Create wallet client for Divvi referral (if available)
+      // Step 1: Load Divvi SDK and create wallet client if available
+      const divviLoaded = await loadDivviSDK();
       let walletClient = null;
-      if (getReferralTag && submitReferral) {
+      
+      if (divviLoaded && getReferralTag && submitReferral) {
         try {
           walletClient = createWalletClient({
             chain: mainnet,
-            transport: custom(window.ethereum),
+            transport: custom(window.ethereum as any),
           });
 
           // Step 2: Generate referral tag
@@ -111,7 +133,15 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       }
 
       // Step 3: Send transaction
-      const contractArgs: any = {
+      interface ContractArgs {
+        address: string;
+        abi: typeof ENB_MINI_APP_ABI;
+        functionName: string;
+        args: string[];
+        dataSuffix?: string;
+      }
+
+      const contractArgs: ContractArgs = {
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
