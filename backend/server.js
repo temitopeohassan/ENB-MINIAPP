@@ -83,15 +83,20 @@ app.get('/', (req, res) => {
 
 // Create user account
 app.post('/api/create-account', async (req, res) => {
+  console.log('📥 Incoming /api/create-account call');
+  console.log('Request body:', req.body);
+
   const { walletAddress, transactionHash } = req.body;
 
   if (!walletAddress || !transactionHash) {
+    console.warn('⚠️ Missing fields', { walletAddress, transactionHash });
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
   try {
-    // Generate unique invitation code
+    console.log('Generating invitation code for:', walletAddress);
     const invitationCode = await generateUniqueInvitationCode();
+    console.log('Generated invitation code:', invitationCode);
 
     await db.collection('accounts').doc(walletAddress).set({
       walletAddress,
@@ -103,17 +108,17 @@ app.post('/api/create-account', async (req, res) => {
       consecutiveDays: 0,
       enbBalance: 0,
       totalEarned: 0,
-      isActivated: false
+      isActivated: false,
     });
 
-    return res.status(201).json({ 
-      message: 'Account created successfully'
-    });
+    console.log('✅ Account created', { walletAddress, invitationCode });
+    return res.status(201).json({ message: 'Account created successfully' });
   } catch (error) {
-    console.error('Error creating account:', error);
+    console.error('❌ Error creating account for', walletAddress, error);
     return res.status(500).json({ error: 'Failed to create account' });
   }
 });
+
 
 // Create default user with limited invitation code
 app.post('/api/create-default-user', async (req, res) => {

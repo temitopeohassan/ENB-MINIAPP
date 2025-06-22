@@ -61,18 +61,27 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       alert('Please connect your wallet');
       return;
     }
-
+  
+    let txHash: string;
+  
     try {
-      // Send transaction
-      const txHash = await writeContractAsync({
+      // Send transaction first
+      txHash = await writeContractAsync({
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
         args: [address],
       });
-
+  
       alert('Transaction sent. Waiting for confirmation...');
-
+    } catch (error) {
+      console.error('Blockchain transaction error:', error);
+      alert('Blockchain transaction failed');
+      return; // Exit early if blockchain fails
+    }
+  
+    // If we get here, blockchain transaction succeeded
+    try {
       // Continue with backend sync
       const response = await fetch(`${API_BASE_URL}/api/create-account`, {
         method: 'POST',
@@ -82,16 +91,18 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           transactionHash: txHash,
         }),
       });
-
+  
       if (!response.ok) {
         throw new Error('Failed to register account with backend');
       }
-
+  
       alert('Account created and synced with backend!');
       setAccountCreated(true);
     } catch (error) {
-      console.error('Create account error:', error);
-      alert('Account creation failed');
+      console.error('Backend sync error:', error);
+      // Since blockchain succeeded but backend failed, still set account as created
+      alert('Account created on blockchain, but backend sync failed. You may need to refresh the page.');
+      setAccountCreated(true); // Still proceed since blockchain part worked
     }
   };
 
