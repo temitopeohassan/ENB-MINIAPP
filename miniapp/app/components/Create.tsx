@@ -246,7 +246,6 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       {hasUnactivatedAccount && (
         <div className="space-y-4">
           <p>Activate your account using an invitation code.</p>
-          <p className="text-sm text-gray-600">Each invitation code is valid for 5 uses per day.</p>
           <form onSubmit={handleActivateAccount} className="space-y-4">
             <input
               type="text"
