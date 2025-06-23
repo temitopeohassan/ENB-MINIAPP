@@ -60,7 +60,11 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           );
 
           if (user) {
-            user.isActivated ? setAccountCreated(true) : setHasUnactivatedAccount(true);
+            if (user.isActivated) {
+              setAccountCreated(true);
+            } else {
+              setHasUnactivatedAccount(true);
+            }
           }
         }
       } catch (error) {
