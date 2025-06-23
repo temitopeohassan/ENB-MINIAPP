@@ -12,7 +12,7 @@ import {
   encodeFunctionData
 } from 'viem';
 import { base } from 'viem/chains';
-import { getDataSuffix, submitReferral } from '@divvi/referral-sdk';
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
 
 const DIVVI_CONFIG = {
   consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44',
@@ -108,13 +108,11 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider)
         });
 
-        const referralTag = getDataSuffix({
+        finalTxData = baseTxData + getReferralTag({
           user: address as `0x${string}`,
           consumer: DIVVI_CONFIG.consumer as `0x${string}`,
           providers: DIVVI_CONFIG.providers as `0x${string}`[]
         });
-
-        finalTxData = baseTxData + referralTag;
         console.log('Divvi referral data added to transaction');
       } catch (divviError) {
         console.warn('Divvi referral setup failed:', divviError);
