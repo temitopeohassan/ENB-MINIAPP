@@ -286,14 +286,10 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
       membershipLevel: data.membershipLevel || 'Based',
       invitationCode: data.invitationCode || null,
       enbBalance: data.enbBalance || 0,
-      lastCheckinTime: data.lastCheckIn instanceof admin.firestore.Timestamp
-        ? data.lastCheckIn.toDate().toISOString()
-        : null,
+      lastCheckinTime: data.lastCheckIn && data.lastCheckIn.toDate ? data.lastCheckIn.toDate().toISOString() : (data.lastCheckIn ? data.lastCheckIn.toISOString() : null),
       consecutiveDays: data.consecutiveDays || 0,
       totalEarned: data.totalEarned || 0,
-      joinDate: data.createdAt instanceof admin.firestore.Timestamp
-        ? data.createdAt.toDate().toISOString()
-        : new Date().toISOString()
+      joinDate: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt ? data.createdAt.toISOString() : null)
     };
 
     return res.status(200).json(profileData);
@@ -712,6 +708,19 @@ app.get('/api/users', async (req, res) => {
 
     snapshot.forEach(doc => {
       const data = doc.data();
+      
+      // Helper function to convert timestamp to ISO string
+      const convertTimestamp = (timestamp) => {
+        if (!timestamp) return null;
+        if (timestamp instanceof admin.firestore.Timestamp) {
+          return timestamp.toDate().toISOString();
+        }
+        if (timestamp.toISOString) {
+          return timestamp.toISOString();
+        }
+        return null;
+      };
+      
       users.push({
         id: doc.id,
         walletAddress: data.walletAddress,
@@ -723,9 +732,9 @@ app.get('/api/users', async (req, res) => {
         totalEarned: data.totalEarned || 0,
         consecutiveDays: data.consecutiveDays || 0,
         isActivated: data.isActivated || false,
-        createdAt: data.createdAt ? data.createdAt.toISOString() : null,
-        activatedAt: data.activatedAt ? data.activatedAt.toISOString() : null,
-        lastCheckIn: data.lastCheckIn ? data.lastCheckIn.toISOString() : null
+        createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt ? data.createdAt.toISOString() : null),
+        activatedAt: data.activatedAt && data.activatedAt.toDate ? data.activatedAt.toDate().toISOString() : (data.activatedAt ? data.activatedAt.toISOString() : null),
+        lastCheckIn: data.lastCheckIn && data.lastCheckIn.toDate ? data.lastCheckIn.toDate().toISOString() : (data.lastCheckIn ? data.lastCheckIn.toISOString() : null)
       });
     });
 
