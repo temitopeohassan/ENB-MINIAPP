@@ -815,3 +815,14 @@ app.post('/api/update-membership', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
+export const updateGameRules = async (rules) => {
+  try {
+    const rulesRef = db.collection('gameRules').doc('current');
+    await rulesRef.set(rules, { merge: true });
+    return true;
+  } catch (error) {
+    console.error('Error updating game rules:', error);
+    throw error;
+  }
+};
