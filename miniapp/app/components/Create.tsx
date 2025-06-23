@@ -6,7 +6,7 @@ import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppA
 import { API_BASE_URL } from '../config';
 import { createWalletClient, custom, createPublicClient, http, encodeFunctionData } from 'viem';
 import { base } from 'viem/chains'; // Changed from mainnet to base
-import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
+import { getDataSuffix, submitReferral } from '@divvi/referral-sdk';
 
 // Divvi configuration
 const DIVVI_CONFIG = {
@@ -110,7 +110,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         });
 
         // Generate referral tag
-        const referralTag = getReferralTag({
+        const referralTag = getDataSuffix({
           user: address,
           consumer: DIVVI_CONFIG.consumer,
           providers: DIVVI_CONFIG.providers,

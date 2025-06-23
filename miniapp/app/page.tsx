@@ -141,9 +141,9 @@ export default function App() {
     try {
       console.log("Adding frame...");
       const frameAdded = await addFrame({ 
-        id: 'airtimeplus',
-        title: 'AirtimePlus',
-        description: 'Buy airtime with USDC',
+        id: 'enbminiapp',
+        title: 'ENB Mini App',
+        description: 'Mine ENB Daily',
         image: process.env.NEXT_PUBLIC_ICON_URL || '',
       });
       console.log("Frame added:", frameAdded);
