@@ -269,7 +269,7 @@ app.post('/api/activate-account', async (req, res) => {
   }
 });
 
-// Get user profile
+app.get('/api/profile/:walletAddress', async (req, res) => {
 app.get('/api/profile/:walletAddress', async (req, res) => {
   const walletAddress = req.params.walletAddress;
 
@@ -282,16 +282,19 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
 
     const data = doc.data();
     
-    // Format the response to match the required structure
     const profileData = {
       walletAddress: data.walletAddress,
       membershipLevel: data.membershipLevel || 'Based',
       invitationCode: data.invitationCode || null,
       enbBalance: data.enbBalance || 0,
-      lastCheckinTime: data.lastCheckIn ? data.lastCheckIn.toDate().toISOString() : null,
+      lastCheckinTime: data.lastCheckIn instanceof admin.firestore.Timestamp
+        ? data.lastCheckIn.toDate().toISOString()
+        : null,
       consecutiveDays: data.consecutiveDays || 0,
       totalEarned: data.totalEarned || 0,
-      joinDate: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+      joinDate: data.createdAt instanceof admin.firestore.Timestamp
+        ? data.createdAt.toDate().toISOString()
+        : new Date().toISOString()
     };
 
     return res.status(200).json(profileData);
@@ -300,6 +303,8 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
     return res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
+
+
 
 // Check-in functionality
 app.post('/api/checkin', async (req, res) => {
