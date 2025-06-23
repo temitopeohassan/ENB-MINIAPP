@@ -92,7 +92,17 @@ export default function App() {
       }
 
       const profileData: User = await response.json();
-      setUserProfile(profileData);
+      
+      // Ensure isActivated is properly converted to boolean
+      const normalizedProfile: User = {
+        ...profileData,
+        isActivated: Boolean(profileData.isActivated)
+      };
+      
+      console.log('Profile fetched:', normalizedProfile);
+      console.log('isActivated value:', normalizedProfile.isActivated, typeof normalizedProfile.isActivated);
+      
+      setUserProfile(normalizedProfile);
       setProfileState('found');
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -164,6 +174,15 @@ export default function App() {
   };
 
   const renderMainComponent = () => {
+    console.log('=== RENDER DEBUG ===');
+    console.log('isConnected:', isConnected);
+    console.log('address:', address);
+    console.log('profileState:', profileState);
+    console.log('userProfile:', userProfile);
+    console.log('userProfile?.isActivated:', userProfile?.isActivated);
+    console.log('==================');
+
+    // Step 1: Check wallet connection
     if (!isConnected || !address) {
       return (
         <div className="flex justify-center items-center py-20">
@@ -175,6 +194,7 @@ export default function App() {
       );
     }
 
+    // Step 2: Check if still loading profile
     if (profileState === 'loading') {
       return (
         <div className="flex justify-center items-center py-20">
@@ -186,6 +206,7 @@ export default function App() {
       );
     }
 
+    // Step 3: Handle API errors
     if (profileState === 'error') {
       return (
         <div className="flex justify-center items-center py-20">
@@ -208,37 +229,59 @@ export default function App() {
       );
     }
 
+    // Step 4: Handle case where no profile exists (404)
     if (profileState === 'not-found') {
+      console.log('Profile not found - showing Create component');
       return <Create refreshUserAccountAction={refreshUserProfile} />;
     }
 
-    // Debug: Add console logs to see what's happening
-    console.log('Debug - profileState:', profileState);
-    console.log('Debug - userProfile:', userProfile);
-    console.log('Debug - isActivated:', userProfile?.isActivated);
+    // Step 5: Handle case where profile exists
+    if (profileState === 'found') {
+      if (!userProfile) {
+        console.log('ERROR: profileState is "found" but userProfile is null');
+        return (
+          <div className="flex justify-center items-center py-20">
+            <div className="text-center">
+              <p className="text-red-500">Profile state error</p>
+              <Button onClick={() => fetchUserProfile(address)} className="mt-2">
+                Retry
+              </Button>
+            </div>
+          </div>
+        );
+      }
 
-    if (profileState === 'found' && userProfile) {
-      if (userProfile.isActivated === true) {
-        console.log('Debug - Rendering Account component');
+      // Check if account is activated
+      const isActivated = Boolean(userProfile.isActivated);
+      console.log('Profile found. isActivated:', isActivated);
+      
+      if (isActivated) {
+        console.log('Account is activated - rendering Account component');
         return <Account userProfile={userProfile} />;
       } else {
-        console.log('Debug - Rendering Create component (not activated)');
+        console.log('Account is not activated - rendering Create component');
         return <Create refreshUserAccountAction={refreshUserProfile} />;
       }
     }
 
-    // Fallback case - this should help identify the issue
-    console.log('Debug - Falling back to loading state');
-    console.log('Debug - Current state:', { profileState, userProfile, isActivated: userProfile?.isActivated });
-    
+    // Step 6: Fallback for unexpected states
+    console.log('UNEXPECTED STATE - This should not happen');
     return (
       <div className="flex justify-center items-center py-20">
         <div className="text-center">
-          <p className="text-gray-500">Unexpected state</p>
-          <p className="text-xs text-gray-400 mt-2">
-            State: {profileState}, Profile: {userProfile ? 'exists' : 'null'}, 
-            Activated: {userProfile?.isActivated?.toString()}
-          </p>
+          <p className="text-gray-500">Unexpected application state</p>
+          <div className="text-xs text-gray-400 mt-2 p-2 bg-gray-100 rounded">
+            <div>State: {profileState}</div>
+            <div>Profile exists: {userProfile ? 'Yes' : 'No'}</div>
+            <div>Is activated: {userProfile?.isActivated?.toString()}</div>
+          </div>
+          <Button 
+            onClick={() => fetchUserProfile(address)} 
+            className="mt-4"
+            size="sm"
+          >
+            Refresh Profile
+          </Button>
         </div>
       </div>
     );
