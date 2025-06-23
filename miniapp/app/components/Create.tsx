@@ -84,7 +84,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     }
 
     setIsCreatingAccount(true);
-    let txHash: string;
+    let txHash: `0x${string}`;
 
     try {
       const publicClient = createPublicClient({ chain: base, transport: http() });
@@ -144,14 +144,14 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         txHash = await window.ethereum.request({
           method: 'eth_sendTransaction',
           params: [txParams]
-        });
+        }) as `0x${string}`;
       } else {
         txHash = await writeContractAsync({
           address: ENB_MINI_APP_ADDRESS,
           abi: ENB_MINI_APP_ABI,
           functionName: 'createAccount',
           args: [address]
-        });
+        }) as `0x${string}`;
       }
 
       if (walletClient && referralTag) {
