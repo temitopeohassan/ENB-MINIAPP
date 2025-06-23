@@ -93,14 +93,17 @@ export default function App() {
 
       const profileData: User = await response.json();
       
+      console.log('Raw API response:', profileData);
+      console.log('Raw isActivated from API:', profileData.isActivated, 'type:', typeof profileData.isActivated);
+      
       // Ensure isActivated is properly converted to boolean
       const normalizedProfile: User = {
         ...profileData,
         isActivated: Boolean(profileData.isActivated)
       };
       
-      console.log('Profile fetched:', normalizedProfile);
-      console.log('isActivated value:', normalizedProfile.isActivated, typeof normalizedProfile.isActivated);
+      console.log('Normalized profile:', normalizedProfile);
+      console.log('Normalized isActivated value:', normalizedProfile.isActivated, 'type:', typeof normalizedProfile.isActivated);
       
       setUserProfile(normalizedProfile);
       setProfileState('found');
@@ -255,8 +258,15 @@ export default function App() {
       const hasAccount = Boolean(userProfile);
       const isActivated = Boolean(userProfile.isActivated);
       
-      console.log('Account check - hasAccount:', hasAccount, 'isActivated:', isActivated);
-      console.log('Raw isActivated value:', userProfile.isActivated, 'type:', typeof userProfile.isActivated);
+      console.log('=== ACTIVATION CHECK DEBUG ===');
+      console.log('userProfile object:', userProfile);
+      console.log('userProfile.isActivated raw value:', userProfile.isActivated);
+      console.log('userProfile.isActivated type:', typeof userProfile.isActivated);
+      console.log('Boolean(userProfile.isActivated):', Boolean(userProfile.isActivated));
+      console.log('hasAccount:', hasAccount);
+      console.log('isActivated:', isActivated);
+      console.log('hasAccount && isActivated:', hasAccount && isActivated);
+      console.log('==============================');
       
       // Only show Account component if BOTH conditions are met:
       // 1. Account exists (we already know this from profileState === 'found')
@@ -266,6 +276,7 @@ export default function App() {
         return <Account userProfile={userProfile} />;
       } else {
         console.log('❌ Account exists but is NOT activated - rendering Create component');
+        console.log('Reason: hasAccount =', hasAccount, ', isActivated =', isActivated);
         return <Create refreshUserAccountAction={refreshUserProfile} />;
       }
     }
