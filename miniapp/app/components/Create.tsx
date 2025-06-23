@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, FormEvent } from 'react';
-import { useAccount, useWriteContract } from 'wagmi';
+import { useAccount } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
 import {
@@ -34,7 +34,6 @@ interface User {
 
 export function Create({ refreshUserAccountAction }: CreateProps) {
   const { address } = useAccount();
-  const { writeContractAsync } = useWriteContract();
 
   const [accountCreated, setAccountCreated] = useState(false);
   const [hasUnactivatedAccount, setHasUnactivatedAccount] = useState(false);
@@ -135,7 +134,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 if (window.ethereum) {
   const txParams = {
     from: address as `0x${string}`,
-    to: ENB_MINI_APP_ADDRESS as `0x${string}`, // ✅ FIXED HERE
+    to: ENB_MINI_APP_ADDRESS as `0x${string}`, 
     data: finalTxData,
     gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
   };
