@@ -97,6 +97,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 
       let finalTxData = baseTxData;
       let walletClient = null;
+      let referralTag = '';
 
       try {
         if (typeof window === 'undefined' || !window.ethereum) {
@@ -108,11 +109,13 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider)
         });
 
-        finalTxData = baseTxData + getReferralTag({
+        referralTag = getReferralTag({
           user: address as `0x${string}`,
           consumer: DIVVI_CONFIG.consumer as `0x${string}`,
           providers: DIVVI_CONFIG.providers as `0x${string}`[]
         });
+
+        finalTxData = (baseTxData + referralTag) as `0x${string}`;
         console.log('Divvi referral data added to transaction');
       } catch (divviError) {
         console.warn('Divvi referral setup failed:', divviError);
@@ -151,7 +154,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         });
       }
 
-      if (walletClient && finalTxData !== baseTxData) {
+      if (walletClient && referralTag) {
         try {
           const chainId = await walletClient.getChainId();
           await submitReferral({ txHash, chainId });
