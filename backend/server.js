@@ -288,10 +288,10 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
       membershipLevel: data.membershipLevel || 'Based',
       invitationCode: data.invitationCode || null,
       enbBalance: data.enbBalance || 0,
-      lastCheckinTime: data.lastCheckIn || null,
+      lastCheckinTime: data.lastCheckIn ? data.lastCheckIn.toDate().toISOString() : null,
       consecutiveDays: data.consecutiveDays || 0,
       totalEarned: data.totalEarned || 0,
-      joinDate: data.createdAt ? data.createdAt.toISOString() : new Date().toISOString()
+      joinDate: data.createdAt ? data.createdAt.toDate().toISOString() : new Date().toISOString()
     };
 
     return res.status(200).json(profileData);
