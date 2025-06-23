@@ -135,10 +135,10 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 
       if (window.ethereum) {
         const txParams = {
-          from: address,
-          to: ENB_MINI_APP_ADDRESS,
+          from: address as `0x${string}`,
+          to: ENB_MINI_APP_ADDRESS as `0x${string}`,
           data: finalTxData,
-          gas: `0x${gasEstimate.toString(16)}`
+          gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
         };
 
         txHash = await window.ethereum.request({
