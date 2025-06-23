@@ -4,39 +4,14 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
-import { createWalletClient, custom } from 'viem';
-import { mainnet } from 'viem/chains';
+import { createWalletClient, custom, createPublicClient, http, encodeFunctionData } from 'viem';
+import { base } from 'viem/chains'; // Changed from mainnet to base
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
 
-// Type definitions for Divvi SDK
-interface ReferralTagParams {
-  user: string;
-  consumer: string;
-  providers: string[];
-}
-
-interface SubmitReferralParams {
-  txHash: string;
-  chainId: number;
-}
-
-type GetReferralTagFunction = (params: ReferralTagParams) => string;
-type SubmitReferralFunction = (params: SubmitReferralParams) => Promise<void>;
-
-// Dynamic import with proper typing
-let getReferralTag: GetReferralTagFunction | null = null;
-let submitReferral: SubmitReferralFunction | null = null;
-
-// Async function to load Divvi SDK
-const loadDivviSDK = async () => {
-  try {
-    const divviModule = await import('@divvi/referral-sdk');
-    getReferralTag = divviModule.getReferralTag;
-    submitReferral = divviModule.submitReferral;
-    return true;
-  } catch (error) {
-    console.warn('Divvi SDK not available:', error);
-    return false;
-  }
+// Divvi configuration
+const DIVVI_CONFIG = {
+  consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44',
+  providers: ['0x0423189886d7966f0dd7e7d256898daeee625dca','0xc95876688026be9d6fa7a7c33328bd013effa2bb'],
 };
 
 interface CreateProps {
@@ -56,6 +31,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
   const [isActivating, setIsActivating] = useState(false);
   const [activationSuccessful, setActivationSuccessful] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
 
   const { writeContractAsync } = useWriteContract();
 
@@ -102,81 +78,118 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       alert('Please connect your wallet');
       return;
     }
-  
+
+    setIsCreatingAccount(true);
     let txHash: string;
-    let referralTag: string = '';
-  
+
     try {
-      // Step 1: Load Divvi SDK and create wallet client if available
-      const divviLoaded = await loadDivviSDK();
-      let walletClient = null;
-      
-      if (divviLoaded && getReferralTag && submitReferral) {
-        try {
-          walletClient = createWalletClient({
-            chain: mainnet,
-            transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider),
-          });
+      // Create public client for gas estimation and wallet client for Divvi
+      const publicClient = createPublicClient({
+        chain: base,
+        transport: http(),
+      });
 
-          // Step 2: Generate referral tag
-          referralTag = getReferralTag({
-            user: address, // The user address making the transaction
-            consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44', // Your Divvi Identifier
-            providers: ['0x0423189886d7966f0dd7e7d256898daeee625dca','0xc95876688026be9d6fa7a7c33328bd013effa2bb'], // Array of campaigns that you signed up for
-          });
-        } catch (referralError) {
-          console.warn('Failed to generate referral tag:', referralError);
-          // Continue without referral tag if generation fails
-        }
-      } else {
-        console.warn('Divvi SDK not available, continuing without referral tracking');
-      }
-
-      // Step 3: Send transaction
-      interface ContractArgs {
-        address: string;
-        abi: typeof ENB_MINI_APP_ABI;
-        functionName: string;
-        args: string[];
-        dataSuffix?: string;
-      }
-
-      const contractArgs: ContractArgs = {
-        address: ENB_MINI_APP_ADDRESS,
+      // Prepare base transaction data
+      const baseTxData = encodeFunctionData({
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
         args: [address],
-      };
+      });
 
-      // Add referral tag as dataSuffix if available
-      if (referralTag) {
-        contractArgs.dataSuffix = `0x${referralTag}`;
+      // DIVVI INTEGRATION: Setup referral tracking
+      let finalTxData = baseTxData;
+      let walletClient = null;
+
+      try {
+        console.log('Setting up Divvi referral tracking...');
+        
+        // Create wallet client for Divvi
+        walletClient = createWalletClient({
+          chain: base, // Use base chain instead of mainnet
+          transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider),
+        });
+
+        // Generate referral tag
+        const referralTag = getReferralTag({
+          user: address,
+          consumer: DIVVI_CONFIG.consumer,
+          providers: DIVVI_CONFIG.providers,
+        });
+
+        // Append referral data to transaction data
+        finalTxData = baseTxData + referralTag;
+        console.log('Divvi referral data added to transaction');
+      } catch (divviError) {
+        console.warn('Divvi referral setup failed, proceeding without referral tracking:', divviError);
+        // Continue with original transaction data if Divvi fails
       }
 
-      txHash = await writeContractAsync(contractArgs);
+      // Get gas estimate with final transaction data
+      console.log('Estimating gas...');
+      let gasEstimate;
+      try {
+        gasEstimate = await publicClient.estimateGas({
+          account: address,
+          to: ENB_MINI_APP_ADDRESS,
+          data: finalTxData
+        });
+        console.log('Gas estimate:', gasEstimate.toString());
+      } catch (gasError) {
+        console.warn('Gas estimation failed, using default:', gasError);
+        gasEstimate = BigInt(100000); // Default gas limit
+      }
 
-      // Step 4: Submit referral to Divvi if available and referral tag was generated
-      if (referralTag && submitReferral && walletClient) {
+      // Send transaction with custom data
+      if (window.ethereum) {
+        const txParams = {
+          from: address,
+          to: ENB_MINI_APP_ADDRESS,
+          data: finalTxData,
+          gas: `0x${gasEstimate.toString(16)}`
+        };
+
+        console.log('Sending transaction with Divvi data...');
+        txHash = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [txParams]
+        });
+      } else {
+        // Fallback to regular writeContract if window.ethereum is not available
+        console.log('Using fallback writeContract method...');
+        txHash = await writeContractAsync({
+          address: ENB_MINI_APP_ADDRESS,
+          abi: ENB_MINI_APP_ABI,
+          functionName: 'createAccount',
+          args: [address],
+        });
+      }
+
+      console.log('Transaction sent:', txHash);
+
+      // DIVVI INTEGRATION: Submit referral after transaction is sent
+      if (walletClient && finalTxData !== baseTxData) {
         try {
+          console.log('Submitting referral to Divvi...');
           const chainId = await walletClient.getChainId();
           await submitReferral({
             txHash,
             chainId,
           });
           console.log('Referral submitted to Divvi successfully');
-        } catch (referralSubmissionError) {
-          console.warn('Failed to submit referral to Divvi:', referralSubmissionError);
-          // Don't fail the main transaction if referral submission fails
+        } catch (divviSubmissionError) {
+          console.warn('Failed to submit referral to Divvi:', divviSubmissionError);
+          // Don't fail the entire transaction if Divvi submission fails
         }
       }
-  
+
       alert('Transaction sent. Waiting for confirmation...');
     } catch (error) {
       console.error('Blockchain transaction error:', error);
       alert('Blockchain transaction failed');
+      setIsCreatingAccount(false);
       return; // Exit early if blockchain fails
     }
-  
+
     // If we get here, blockchain transaction succeeded
     try {
       // Continue with backend sync
@@ -188,11 +201,11 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           transactionHash: txHash,
         }),
       });
-  
+
       if (!response.ok) {
         throw new Error('Failed to register account with backend');
       }
-  
+
       alert('Account created and synced with backend!');
       setAccountCreated(true);
       setHasUnactivatedAccount(true); // Account created but needs activation
@@ -202,6 +215,8 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       alert('Account created.');
       setAccountCreated(true); // Still proceed since blockchain part worked
       setHasUnactivatedAccount(true); // Account created but needs activation
+    } finally {
+      setIsCreatingAccount(false);
     }
   };
 
@@ -282,9 +297,10 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
             <p>Create your mining account to start earning ENB</p>
             <button
               onClick={handleCreateAccount}
-              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              disabled={isCreatingAccount}
+              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
             >
-              Create Mining Account
+              {isCreatingAccount ? 'Creating Account...' : 'Create Mining Account'}
             </button>
           </div>
         ) : hasUnactivatedAccount ? (
