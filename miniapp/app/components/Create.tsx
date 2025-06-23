@@ -4,14 +4,22 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
-import { createWalletClient, custom, createPublicClient, http, encodeFunctionData } from 'viem';
-import { base } from 'viem/chains'; // Changed from mainnet to base
+import {
+  createWalletClient,
+  custom,
+  createPublicClient,
+  http,
+  encodeFunctionData
+} from 'viem';
+import { base } from 'viem/chains';
 import { getDataSuffix, submitReferral } from '@divvi/referral-sdk';
 
-// Divvi configuration
 const DIVVI_CONFIG = {
   consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44',
-  providers: ['0x0423189886d7966f0dd7e7d256898daeee625dca','0xc95876688026be9d6fa7a7c33328bd013effa2bb'],
+  providers: [
+    '0x0423189886d7966f0dd7e7d256898daeee625dca',
+    '0xc95876688026be9d6fa7a7c33328bd013effa2bb'
+  ]
 };
 
 interface CreateProps {
@@ -35,7 +43,6 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 
   const { writeContractAsync } = useWriteContract();
 
-  // Check if user has an account that needs activation
   useEffect(() => {
     const checkExistingAccount = async () => {
       if (!address) {
@@ -45,23 +52,16 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 
       try {
         const response = await fetch(`${API_BASE_URL}/api/users?limit=1000`);
-        
+
         if (response.ok) {
           const data = await response.json();
-          const user = data.users.find((u: User) => 
+          const user = data.users.find((u: User) =>
             u.walletAddress.toLowerCase() === address.toLowerCase()
           );
 
           if (user) {
-            if (user.isActivated) {
-              // User has an activated account - should redirect to main app
-              setAccountCreated(true);
-            } else {
-              // User has an account but it's not activated
-              setHasUnactivatedAccount(true);
-            }
+            user.isActivated ? setAccountCreated(true) : setHasUnactivatedAccount(true);
           }
-          // If no user found, show create account option
         }
       } catch (error) {
         console.error('Error checking existing account:', error);
@@ -83,49 +83,39 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     let txHash: string;
 
     try {
-      // Create public client for gas estimation and wallet client for Divvi
-      const publicClient = createPublicClient({
-        chain: base,
-        transport: http(),
-      });
+      const publicClient = createPublicClient({ chain: base, transport: http() });
 
-      // Prepare base transaction data
       const baseTxData = encodeFunctionData({
         abi: ENB_MINI_APP_ABI,
         functionName: 'createAccount',
-        args: [address],
+        args: [address]
       });
 
-      // DIVVI INTEGRATION: Setup referral tracking
       let finalTxData = baseTxData;
       let walletClient = null;
 
       try {
-        console.log('Setting up Divvi referral tracking...');
-        
-        // Create wallet client for Divvi
+        if (typeof window === 'undefined' || !window.ethereum) {
+          throw new Error('Ethereum provider not found');
+        }
+
         walletClient = createWalletClient({
-          chain: base, // Use base chain instead of mainnet
-          transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider),
+          chain: base,
+          transport: custom(window.ethereum as unknown as import('viem').EIP1193Provider)
         });
 
-        // Generate referral tag
         const referralTag = getDataSuffix({
-          user: address,
-          consumer: DIVVI_CONFIG.consumer,
-          providers: DIVVI_CONFIG.providers,
+          user: address as `0x${string}`,
+          consumer: DIVVI_CONFIG.consumer as `0x${string}`,
+          providers: DIVVI_CONFIG.providers as `0x${string}`[]
         });
 
-        // Append referral data to transaction data
         finalTxData = baseTxData + referralTag;
         console.log('Divvi referral data added to transaction');
       } catch (divviError) {
-        console.warn('Divvi referral setup failed, proceeding without referral tracking:', divviError);
-        // Continue with original transaction data if Divvi fails
+        console.warn('Divvi referral setup failed:', divviError);
       }
 
-      // Get gas estimate with final transaction data
-      console.log('Estimating gas...');
       let gasEstimate;
       try {
         gasEstimate = await publicClient.estimateGas({
@@ -133,13 +123,11 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           to: ENB_MINI_APP_ADDRESS,
           data: finalTxData
         });
-        console.log('Gas estimate:', gasEstimate.toString());
       } catch (gasError) {
-        console.warn('Gas estimation failed, using default:', gasError);
-        gasEstimate = BigInt(100000); // Default gas limit
+        console.warn('Gas estimation failed:', gasError);
+        gasEstimate = BigInt(100000);
       }
 
-      // Send transaction with custom data
       if (window.ethereum) {
         const txParams = {
           from: address,
@@ -148,73 +136,53 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           gas: `0x${gasEstimate.toString(16)}`
         };
 
-        console.log('Sending transaction with Divvi data...');
         txHash = await window.ethereum.request({
           method: 'eth_sendTransaction',
           params: [txParams]
         });
       } else {
-        // Fallback to regular writeContract if window.ethereum is not available
-        console.log('Using fallback writeContract method...');
         txHash = await writeContractAsync({
           address: ENB_MINI_APP_ADDRESS,
           abi: ENB_MINI_APP_ABI,
           functionName: 'createAccount',
-          args: [address],
+          args: [address]
         });
       }
 
-      console.log('Transaction sent:', txHash);
-
-      // DIVVI INTEGRATION: Submit referral after transaction is sent
       if (walletClient && finalTxData !== baseTxData) {
         try {
-          console.log('Submitting referral to Divvi...');
           const chainId = await walletClient.getChainId();
-          await submitReferral({
-            txHash,
-            chainId,
-          });
-          console.log('Referral submitted to Divvi successfully');
-        } catch (divviSubmissionError) {
-          console.warn('Failed to submit referral to Divvi:', divviSubmissionError);
-          // Don't fail the entire transaction if Divvi submission fails
+          await submitReferral({ txHash, chainId });
+        } catch (referralError) {
+          console.warn('Referral submission failed:', referralError);
         }
       }
 
       alert('Transaction sent. Waiting for confirmation...');
     } catch (error) {
-      console.error('Blockchain transaction error:', error);
+      console.error('Transaction error:', error);
       alert('Blockchain transaction failed');
       setIsCreatingAccount(false);
-      return; // Exit early if blockchain fails
+      return;
     }
 
-    // If we get here, blockchain transaction succeeded
     try {
-      // Continue with backend sync
       const response = await fetch(`${API_BASE_URL}/api/create-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          transactionHash: txHash,
-        }),
+        body: JSON.stringify({ walletAddress: address, transactionHash: txHash })
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to register account with backend');
-      }
+      if (!response.ok) throw new Error('Backend registration failed');
 
       alert('Account created and synced with backend!');
       setAccountCreated(true);
-      setHasUnactivatedAccount(true); // Account created but needs activation
+      setHasUnactivatedAccount(true);
     } catch (error) {
-      console.error('Backend sync error:', error);
-      // Since blockchain succeeded but backend failed, still set account as created
-      alert('Account created.');
-      setAccountCreated(true); // Still proceed since blockchain part worked
-      setHasUnactivatedAccount(true); // Account created but needs activation
+      console.error('Backend error:', error);
+      alert('Account created. Backend sync failed.');
+      setAccountCreated(true);
+      setHasUnactivatedAccount(true);
     } finally {
       setIsCreatingAccount(false);
     }
@@ -222,46 +190,30 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 
   const handleActivateAccount = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!address || !activationCode.trim()) {
-      alert('Please enter a valid invitation code');
-      return;
-    }
+    if (!address || !activationCode.trim()) return alert('Enter a valid invitation code');
 
     setIsActivating(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/activate-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          invitationCode: activationCode.trim(),
-        }),
+        body: JSON.stringify({ walletAddress: address, invitationCode: activationCode.trim() })
       });
 
       const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Activation failed');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Activation failed');
-      }
-
-      alert('Account activated! Membership level: ' + data.membershipLevel);
+      alert(`Account activated! Membership level: ${data.membershipLevel}`);
       setActivationSuccessful(true);
-      
-      // Wait a moment for the success message to show, then refresh user account
-      setTimeout(async () => {
-        await refreshUserAccountAction();
-      }, 2000);
+      setTimeout(refreshUserAccountAction, 2000);
     } catch (err: unknown) {
       console.error('Activation error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to activate account';
-      alert(errorMessage);
+      alert(err instanceof Error ? err.message : 'Activation failed');
     } finally {
       setIsActivating(false);
     }
   };
 
-  // Show loading while checking account status
   if (isCheckingAccount) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -274,7 +226,6 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     );
   }
 
-  // If activation was successful, show a success message and trigger redirect
   if (activationSuccessful) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -291,7 +242,6 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     <div className="space-y-6 animate-fade-in">
       <div className="space-y-4">
         <h1 className="text-xl font-bold">Welcome To ENB Mini App</h1>
-
         {!accountCreated && !hasUnactivatedAccount ? (
           <div className="space-y-4">
             <p>Create your mining account to start earning ENB</p>
@@ -310,15 +260,13 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
               Each invitation code can only be used 5 times in 24 hours
             </p>
             <form onSubmit={handleActivateAccount} className="space-y-4">
-              <div>
-                <input
-                  type="text"
-                  value={activationCode}
-                  onChange={(e) => setActivationCode(e.target.value)}
-                  placeholder="Enter invitation code"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
+              <input
+                type="text"
+                value={activationCode}
+                onChange={(e) => setActivationCode(e.target.value)}
+                placeholder="Enter invitation code"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
               <button
                 type="submit"
                 disabled={isActivating}
