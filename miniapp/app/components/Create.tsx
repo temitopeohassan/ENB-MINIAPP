@@ -82,7 +82,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
     }
 
     setIsCreatingAccount(true);
-    let txHash: `0x${string}`;
+    let txHash: `0x${string}` | undefined;
 
     try {
       const publicClient = createPublicClient({ chain: base, transport: http() });
@@ -224,6 +224,14 @@ if (window.ethereum) {
 
       {!accountCreated && !hasUnactivatedAccount && (
         <div className="space-y-4">
+	   <p>Welcome to base layer, here we help you activate your base layer each day till you move from </p>
+<p>Based to legendary 🔥</p>
+<p>We stand as an onboarder to the new coinbase wallet and we want to ensure all based fellas are there.</p>
+<p>You get to walk the talk with this game and get so basified.</p>
+<p>You get to claim your base layer each day ($ENB) once 24 hours elaps</p>
+<p>We will have simple tasks that increases your boosters. So time counts faster.</p>
+<p>We are your gateway to knowing and paying attention to a lot of miniapps on the new coinbase wallet that are good for you 💪</p>
+<p>Once you get to legendary level, you will get an sbt of ENB FAMS( coming soon)</p>
           <p>Create your mining account to start earning ENB.</p>
           <button
             onClick={handleCreateAccount}
