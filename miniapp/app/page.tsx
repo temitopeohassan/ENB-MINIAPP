@@ -216,7 +216,7 @@ export default function App() {
         <div className="flex justify-center items-center py-20">
           <div className="text-center">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-sm mx-auto">
-              <Icon name="alert-circle" size="lg" className="text-red-500 mx-auto mb-4" />
+              <Icon name="arrow-right" size="lg" className="text-red-500 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-red-800 mb-2">Error Loading Profile</h3>
               <p className="text-red-600 text-sm mb-4">{apiError}</p>
               <Button 
