@@ -46,7 +46,6 @@ export default function App() {
   const [apiError, setApiError] = useState<string | null>(null);
 
   const { addFrame } = useAddFrame();
-
   const frameConnector = useMemo(() => farcasterFrame(), []);
 
   useEffect(() => {
@@ -95,7 +94,6 @@ export default function App() {
       const profileData: User = await response.json();
       setUserProfile(profileData);
       setProfileState('found');
-
     } catch (error) {
       console.error('Error fetching user profile:', error);
       setApiError(error instanceof Error ? error.message : 'Unknown error occurred');
@@ -210,11 +208,19 @@ export default function App() {
       );
     }
 
-    if (profileState === 'found' && userProfile?.isActivated) {
-      return <Account userProfile={userProfile} />;
+    if (profileState === 'found') {
+      if (userProfile?.isActivated) {
+        return <Account userProfile={userProfile} />;
+      } else if (userProfile) {
+        return <Create refreshUserAccountAction={refreshUserProfile} />;
+      }
     }
 
-    return <Create refreshUserAccountAction={refreshUserProfile} />;
+    return (
+      <div className="flex justify-center items-center py-20">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    );
   };
 
   return (
