@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   useMiniKit,
@@ -41,14 +41,12 @@ export default function App() {
   const { isConnected, address } = useAccount();
   const { connect } = useConnect();
 
-  // Simplified state management
   const [userProfile, setUserProfile] = useState<User | null>(null);
   const [profileState, setProfileState] = useState<ProfileState>('loading');
   const [apiError, setApiError] = useState<string | null>(null);
 
   const { addFrame } = useAddFrame();
 
-  // Initialize frame connector
   const frameConnector = useMemo(() => farcasterFrame(), []);
 
   useEffect(() => {
@@ -57,12 +55,10 @@ export default function App() {
     }
   }, [setFrameReady, isFrameReady]);
 
-  // Auto connect wallet on component mount
   useEffect(() => {
     const autoConnect = async () => {
       try {
         if (!isConnected) {
-          console.log("Attempting to auto-connect wallet...");
           await connect({ connector: frameConnector });
         }
       } catch (error) {
@@ -72,7 +68,6 @@ export default function App() {
     autoConnect();
   }, [isConnected, connect, frameConnector]);
 
-  // Fetch user profile when wallet connects
   const fetchUserProfile = useCallback(async (walletAddress: string) => {
     if (!walletAddress) {
       setUserProfile(null);
@@ -85,29 +80,19 @@ export default function App() {
     setApiError(null);
 
     try {
-      console.log(`Fetching profile for wallet: ${walletAddress}`);
-      
       const response = await fetch(`${API_BASE_URL}/api/profile/${walletAddress}`);
-      
       if (response.status === 404) {
-        // User profile doesn't exist
-        console.log('User profile not found');
         setUserProfile(null);
         setProfileState('not-found');
         return;
       }
-      
+
       if (!response.ok) {
-        // Other HTTP errors
-        const errorData: ApiError = await response.json().catch(() => ({ 
-          error: `HTTP ${response.status}` 
-        }));
+        const errorData: ApiError = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
         throw new Error(errorData.message || errorData.error || 'Failed to fetch profile');
       }
 
       const profileData: User = await response.json();
-      console.log('Profile data received:', profileData);
-      
       setUserProfile(profileData);
       setProfileState('found');
 
@@ -119,7 +104,6 @@ export default function App() {
     }
   }, []);
 
-  // Effect to fetch profile when address changes
   useEffect(() => {
     if (address) {
       fetchUserProfile(address);
@@ -130,7 +114,6 @@ export default function App() {
     }
   }, [address, fetchUserProfile]);
 
-  // Refresh function for after account creation/activation
   const refreshUserProfile = useCallback(async () => {
     if (address) {
       await fetchUserProfile(address);
@@ -139,14 +122,12 @@ export default function App() {
 
   const handleAddFrame = useCallback(async () => {
     try {
-      console.log("Adding frame...");
       const frameAdded = await addFrame({ 
         id: 'enbminiapp',
         title: 'ENB Mini App',
         description: 'Mine ENB Daily',
         image: process.env.NEXT_PUBLIC_ICON_URL || '',
       });
-      console.log("Frame added:", frameAdded);
       setFrameAdded(Boolean(frameAdded));
     } catch (error) {
       console.error("Failed to add frame:", error);
@@ -184,9 +165,7 @@ export default function App() {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  // Determine which component to render based on state
   const renderMainComponent = () => {
-    // Still connecting wallet
     if (!isConnected || !address) {
       return (
         <div className="flex justify-center items-center py-20">
@@ -198,7 +177,6 @@ export default function App() {
       );
     }
 
-    // Loading profile data
     if (profileState === 'loading') {
       return (
         <div className="flex justify-center items-center py-20">
@@ -210,7 +188,6 @@ export default function App() {
       );
     }
 
-    // API Error occurred
     if (profileState === 'error') {
       return (
         <div className="flex justify-center items-center py-20">
@@ -233,29 +210,15 @@ export default function App() {
       );
     }
 
-    // Profile found and activated - show Account component
-    if (profileState === 'found' && userProfile && userProfile.isActivated) {
-      console.log('Rendering Account component - user is activated');
+    if (profileState === 'found' && userProfile?.isActivated) {
       return <Account userProfile={userProfile} />;
     }
 
-    // Profile not found OR profile found but not activated - show Create component
-    console.log('Rendering Create component', {
-      profileState,
-      userProfile: userProfile ? { ...userProfile, isActivated: userProfile.isActivated } : null
-    });
-    
-    return (
-      <Create 
-        existingProfile={userProfile}
-        refreshUserProfile={refreshUserProfile}
-      />
-    );
+    return <Create refreshUserAccountAction={refreshUserProfile} />;
   };
 
   return (
     <div className="flex flex-col min-h-screen font-sans text-[var(--app-foreground)] mini-app-theme from-[var(--app-background)] to-[var(--app-gray)]">
-      {/* Fixed Header */}
       <header className="fixed top-0 left-0 right-0 bg-[var(--app-background)] border-b border-[var(--app-gray)] z-50">
         <div className="w-full max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3">
@@ -268,7 +231,7 @@ export default function App() {
             />
             <h1 className="text-xl font-bold">ENB MINI APP</h1>
           </div>
-          
+
           <div className="flex items-center space-x-2">
             {saveFrameButton}
           </div>
@@ -278,26 +241,17 @@ export default function App() {
               <div className="px-3 py-1.5 bg-[var(--app-gray)] rounded-full text-sm font-medium">
                 {truncateAddress(address)}
               </div>
-              {/* Optional: Show profile status indicator */}
               {profileState === 'found' && userProfile && (
-                <div className={`w-2 h-2 rounded-full ${
-                  userProfile.isActivated ? 'bg-green-500' : 'bg-yellow-500'
-                }`} title={userProfile.isActivated ? 'Activated' : 'Not Activated'} />
+                <div className={`w-2 h-2 rounded-full ${userProfile.isActivated ? 'bg-green-500' : 'bg-yellow-500'}`} title={userProfile.isActivated ? 'Activated' : 'Not Activated'} />
               )}
             </div>
           )}
         </div>
       </header>
 
-      {/* Main Content with top padding for fixed header */}
       <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
-        <main className="flex-1">
-          {renderMainComponent()}
-        </main>
-
-        <footer className="mt-2 pt-4 flex justify-center">
-          ENB Mini App
-        </footer>
+        <main className="flex-1">{renderMainComponent()}</main>
+        <footer className="mt-2 pt-4 flex justify-center">ENB Mini App</footer>
       </div>
     </div>
   );
