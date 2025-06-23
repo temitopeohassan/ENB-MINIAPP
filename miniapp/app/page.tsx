@@ -253,7 +253,7 @@ export default function App() {
 
       // Explicitly check if account exists AND is activated
       const hasAccount = Boolean(userProfile);
-      const isActivated = Boolean(userProfile.isActivated === true || userProfile.isActivated === 'true' || userProfile.isActivated === 1);
+      const isActivated = Boolean(userProfile.isActivated);
       
       console.log('Account check - hasAccount:', hasAccount, 'isActivated:', isActivated);
       console.log('Raw isActivated value:', userProfile.isActivated, 'type:', typeof userProfile.isActivated);
