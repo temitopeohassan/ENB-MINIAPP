@@ -132,26 +132,20 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         gasEstimate = BigInt(100000);
       }
 
-      if (window.ethereum) {
-        const txParams = {
-          from: address as `0x${string}`,
-          to: ENB_MINI_APP_ADDRESS,
-          data: finalTxData,
-          gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
-        };
+if (window.ethereum) {
+  const txParams = {
+    from: address as `0x${string}`,
+    to: ENB_MINI_APP_ADDRESS as `0x${string}`, // ✅ FIXED HERE
+    data: finalTxData,
+    gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
+  };
 
-        txHash = await (window.ethereum as EIP1193Provider).request({
-          method: 'eth_sendTransaction',
-          params: [txParams]
-        }) as `0x${string}`;
-      } else {
-        txHash = await writeContractAsync({
-          address: ENB_MINI_APP_ADDRESS,
-          abi: ENB_MINI_APP_ABI,
-          functionName: 'createAccount',
-          args: [address]
-        }) as `0x${string}`;
-      }
+  txHash = await (window.ethereum as EIP1193Provider).request({
+    method: 'eth_sendTransaction',
+    params: [txParams]
+  }) as `0x${string}`;
+}
+
 
       if (walletClient && referralTag) {
         try {
