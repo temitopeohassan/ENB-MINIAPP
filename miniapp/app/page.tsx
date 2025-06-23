@@ -28,6 +28,21 @@ interface User {
   lastCheckIn?: string;
 }
 
+// Add a separate interface for the raw API response
+interface ApiUserResponse {
+  id: string;
+  walletAddress: string;
+  membershipLevel: string;
+  invitationCode: string | null;
+  enbBalance: number;
+  totalEarned: number;
+  consecutiveDays: number;
+  isActivated: boolean | string | number; // API might return different types
+  createdAt: string;
+  activatedAt?: string;
+  lastCheckIn?: string;
+}
+
 interface ApiError {
   error: string;
   message?: string;
@@ -56,6 +71,20 @@ export default function App() {
     console.log(logMessage);
     setDebugInfo(prev => prev + logMessage + '\n');
   }, []);
+
+  // Helper function to normalize isActivated value
+  const normalizeIsActivated = (value: boolean | string | number): boolean => {
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    if (typeof value === 'string') {
+      return value.toLowerCase() === 'true' || value === '1';
+    }
+    if (typeof value === 'number') {
+      return value === 1;
+    }
+    return false;
+  };
 
   useEffect(() => {
     if (!isFrameReady) {
@@ -125,7 +154,7 @@ export default function App() {
         throw new Error(errorData.message || errorData.error || 'Failed to fetch profile');
       }
 
-      const profileData: User = await response.json();
+      const profileData: ApiUserResponse = await response.json();
       addDebugLog(`Raw API response: ${JSON.stringify(profileData, null, 2)}`);
       
       // Log the specific isActivated field
@@ -134,7 +163,7 @@ export default function App() {
       // Normalize the profile data
       const normalizedProfile: User = {
         ...profileData,
-        isActivated: profileData.isActivated === true || profileData.isActivated === 'true' || profileData.isActivated === 1
+        isActivated: normalizeIsActivated(profileData.isActivated)
       };
       
       addDebugLog(`Normalized isActivated: ${normalizedProfile.isActivated} (type: ${typeof normalizedProfile.isActivated})`);
