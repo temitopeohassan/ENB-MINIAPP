@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
@@ -9,7 +9,8 @@ import {
   createPublicClient,
   encodeFunctionData,
   http,
-  custom
+  custom,
+  EIP1193Provider
 } from 'viem';
 import { base } from 'viem/chains';
 import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
@@ -65,8 +66,8 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
             setHasUnactivatedAccount(true);
           }
         }
-      } catch (err) {
-        console.error('Error checking account:', err);
+      } catch (error) {
+        console.error('Error checking account:', error);
       } finally {
         setIsCheckingAccount(false);
       }
@@ -97,11 +98,15 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       let walletClient = null;
 
       try {
-        if (!window.ethereum) throw new Error('Ethereum provider not found');
+        if (typeof window === 'undefined' || !window.ethereum) {
+          throw new Error('Ethereum provider not found');
+        }
+
+        const ethereum = window.ethereum as EIP1193Provider;
 
         walletClient = createWalletClient({
           chain: base,
-          transport: custom(window.ethereum as any)
+          transport: custom(ethereum)
         });
 
         referralTag = getReferralTag({
@@ -123,8 +128,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           to: ENB_MINI_APP_ADDRESS,
           data: finalTxData
         });
-      } catch (err) {
-        console.warn('Gas estimation failed. Using fallback.');
+      } catch {
         gasEstimate = BigInt(100000);
       }
 
@@ -136,7 +140,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
         };
 
-        txHash = await window.ethereum.request({
+        txHash = await (window.ethereum as EIP1193Provider).request({
           method: 'eth_sendTransaction',
           params: [txParams]
         }) as `0x${string}`;
@@ -153,43 +157,41 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         try {
           const chainId = await walletClient.getChainId();
           await submitReferral({ txHash, chainId });
-        } catch (err) {
-          console.warn('Referral submission failed:', err);
+        } catch (referralError) {
+          console.warn('Referral submission failed:', referralError);
         }
       }
 
-      alert('Transaction sent. Waiting for backend sync...');
-
-      const res = await fetch(`${API_BASE_URL}/api/create-account`, {
+      const backendResponse = await fetch(`${API_BASE_URL}/api/create-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ walletAddress: address, transactionHash: txHash })
       });
 
-      if (!res.ok) throw new Error('Backend account registration failed');
+      if (!backendResponse.ok) throw new Error('Backend sync failed');
 
       alert('Account created and synced!');
       setAccountCreated(true);
       setHasUnactivatedAccount(true);
-    } catch (err) {
-      console.error('Account creation failed:', err);
+    } catch (error) {
+      console.error('Account creation failed:', error);
       alert('Failed to create account');
     } finally {
       setIsCreatingAccount(false);
     }
   };
 
-  const handleActivateAccount = async (e: React.FormEvent) => {
+  const handleActivateAccount = async (e: FormEvent) => {
     e.preventDefault();
 
     if (!address || !activationCode.trim()) {
-      alert('Please enter a valid invitation code');
+      alert('Enter a valid invitation code');
       return;
     }
 
     setIsActivating(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/activate-account`, {
+      const response = await fetch(`${API_BASE_URL}/api/activate-account`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -198,16 +200,16 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Activation failed');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Activation failed');
 
       alert(`Account activated! Membership level: ${data.membershipLevel}`);
 
-      // 🔁 Refresh the profile so App.tsx can show <Account />
+      // Refresh parent profile
       await refreshUserAccountAction();
-    } catch (err) {
-      console.error('Activation failed:', err);
-      alert(err instanceof Error ? err.message : 'Activation failed');
+    } catch (error) {
+      console.error('Activation failed:', error);
+      alert(error instanceof Error ? error.message : 'Activation failed');
     } finally {
       setIsActivating(false);
     }
@@ -215,10 +217,10 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
 
   if (isCheckingAccount) {
     return (
-      <div className="space-y-6 animate-fade-in text-center">
+      <div className="space-y-6 text-center animate-fade-in">
         <h1 className="text-xl font-bold">Welcome To ENB Mini App</h1>
         <p className="text-gray-600">Checking your account status...</p>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto" />
       </div>
     );
   }
@@ -233,7 +235,7 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
           <button
             onClick={handleCreateAccount}
             disabled={isCreatingAccount}
-            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition disabled:opacity-50"
+            className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
           >
             {isCreatingAccount ? 'Creating Account...' : 'Create Mining Account'}
           </button>
@@ -243,21 +245,19 @@ export function Create({ refreshUserAccountAction }: CreateProps) {
       {hasUnactivatedAccount && (
         <div className="space-y-4">
           <p>Activate your account using an invitation code.</p>
-          <p className="text-sm text-gray-600">
-            Each invitation code is valid for 5 uses every 24 hours.
-          </p>
+          <p className="text-sm text-gray-600">Each invitation code is valid for 5 uses per day.</p>
           <form onSubmit={handleActivateAccount} className="space-y-4">
             <input
               type="text"
               value={activationCode}
               onChange={(e) => setActivationCode(e.target.value)}
               placeholder="Enter invitation code"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
             <button
               type="submit"
               disabled={isActivating}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50"
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
               {isActivating ? 'Activating...' : 'Activate Account'}
             </button>
