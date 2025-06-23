@@ -270,7 +270,6 @@ app.post('/api/activate-account', async (req, res) => {
 });
 
 app.get('/api/profile/:walletAddress', async (req, res) => {
-app.get('/api/profile/:walletAddress', async (req, res) => {
   const walletAddress = req.params.walletAddress;
 
   try {
@@ -303,8 +302,6 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
     return res.status(500).json({ error: 'Failed to fetch profile' });
   }
 });
-
-
 
 // Check-in functionality
 app.post('/api/checkin', async (req, res) => {
@@ -815,14 +812,3 @@ app.post('/api/update-membership', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
-
-export const updateGameRules = async (rules) => {
-  try {
-    const rulesRef = db.collection('gameRules').doc('current');
-    await rulesRef.set(rules, { merge: true });
-    return true;
-  } catch (error) {
-    console.error('Error updating game rules:', error);
-    throw error;
-  }
-};

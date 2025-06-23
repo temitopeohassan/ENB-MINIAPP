@@ -1,7 +1,7 @@
-import admin from 'firebase-admin';
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
-import dotenv from 'dotenv';
+const admin = require('firebase-admin');
+const { initializeApp, cert } = require('firebase-admin/app');
+const { getFirestore } = require('firebase-admin/firestore');
+const dotenv = require('dotenv');
 
 dotenv.config();
 
@@ -14,7 +14,7 @@ if (admin.apps.length === 0) {
 
 const db = getFirestore();
 
-export const getGameStatus = async () => {
+const getGameStatus = async () => {
   try {
     const gameStatusRef = db.collection('gameStatus').doc('current');
     const doc = await gameStatusRef.get();
@@ -25,7 +25,7 @@ export const getGameStatus = async () => {
   }
 };
 
-export const updateGameStatus = async (status) => {
+const updateGameStatus = async (status) => {
   try {
     const gameStatusRef = db.collection('gameStatus').doc('current');
     await gameStatusRef.set(status, { merge: true });
@@ -36,7 +36,7 @@ export const updateGameStatus = async (status) => {
   }
 };
 
-export const getVotingData = async () => {
+const getVotingData = async () => {
   try {
     const votingRef = db.collection('voting').doc('current');
     const doc = await votingRef.get();
@@ -47,7 +47,7 @@ export const getVotingData = async () => {
   }
 };
 
-export const submitVote = async (voterId, votedForId) => {
+const submitVote = async (voterId, votedForId) => {
   try {
     const votingRef = db.collection('voting').doc('current');
     await votingRef.update({
@@ -64,7 +64,7 @@ export const submitVote = async (voterId, votedForId) => {
   }
 };
 
-export const getLeaderboard = async () => {
+const getLeaderboard = async () => {
   try {
     const leaderboardRef = db.collection('leaderboard');
     const snapshot = await leaderboardRef.orderBy('score', 'desc').limit(100).get();
@@ -75,7 +75,7 @@ export const getLeaderboard = async () => {
   }
 };
 
-export const updatePlayerScore = async (playerId, score) => {
+const updatePlayerScore = async (playerId, score) => {
   try {
     const playerRef = db.collection('leaderboard').doc(playerId);
     await playerRef.set({ score }, { merge: true });
@@ -86,7 +86,7 @@ export const updatePlayerScore = async (playerId, score) => {
   }
 };
 
-export const getPlayerProfile = async (playerId) => {
+const getPlayerProfile = async (playerId) => {
   try {
     const profileRef = db.collection('profiles').doc(playerId);
     const doc = await profileRef.get();
@@ -97,7 +97,7 @@ export const getPlayerProfile = async (playerId) => {
   }
 };
 
-export const updatePlayerProfile = async (playerId, profileData) => {
+const updatePlayerProfile = async (playerId, profileData) => {
   try {
     const profileRef = db.collection('profiles').doc(playerId);
     await profileRef.set(profileData, { merge: true });
@@ -108,7 +108,7 @@ export const updatePlayerProfile = async (playerId, profileData) => {
   }
 };
 
-export const getRewardsData = async () => {
+const getRewardsData = async () => {
   try {
     const rewardsRef = db.collection('rewards').doc('current');
     const doc = await rewardsRef.get();
@@ -119,7 +119,7 @@ export const getRewardsData = async () => {
   }
 };
 
-export const updateRewardsData = async (rewardsData) => {
+const updateRewardsData = async (rewardsData) => {
   try {
     const rewardsRef = db.collection('rewards').doc('current');
     await rewardsRef.set(rewardsData, { merge: true });
@@ -130,7 +130,7 @@ export const updateRewardsData = async (rewardsData) => {
   }
 };
 
-export const getGameRules = async () => {
+const getGameRules = async () => {
   try {
     const rulesRef = db.collection('gameRules').doc('current');
     const doc = await rulesRef.get();
@@ -141,7 +141,7 @@ export const getGameRules = async () => {
   }
 };
 
-export const updateGameRules = async (rules) => {
+const updateGameRules = async (rules) => {
   try {
     const rulesRef = db.collection('gameRules').doc('current');
     await rulesRef.set(rules, { merge: true });
@@ -150,4 +150,19 @@ export const updateGameRules = async (rules) => {
     console.error('Error updating game rules:', error);
     throw error;
   }
+};
+
+module.exports = {
+  getGameStatus,
+  updateGameStatus,
+  getVotingData,
+  submitVote,
+  getLeaderboard,
+  updatePlayerScore,
+  getPlayerProfile,
+  updatePlayerProfile,
+  getRewardsData,
+  updateRewardsData,
+  getGameRules,
+  updateGameRules
 }; 
