@@ -14,6 +14,9 @@ import {
 } from 'viem';
 import { base } from 'viem/chains';
 import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
+import { Button } from "./Button";
+import { Icon } from "./Icon";
+import { sdk } from '@farcaster/frame-sdk'
 
 const DIVVI_CONFIG = {
   consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44',
@@ -39,6 +42,8 @@ export const Create: React.FC = () => {
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
   const [isCreatingAccount, setIsCreatingAccount] = useState(false);
   const [isActivating, setIsActivating] = useState(false);
+  const [showCreatedModal, setShowCreatedModal] = useState(false);
+  const [showActivatedModal, setShowActivatedModal] = useState(false);
 
   useEffect(() => {
     const checkExistingAccount = async () => {
@@ -169,7 +174,7 @@ export const Create: React.FC = () => {
 
       if (!backendResponse.ok) throw new Error('Backend sync failed');
 
-      alert('Account created and synced!');
+      setShowCreatedModal(true);
       setAccountCreated(true);
       setHasUnactivatedAccount(true);
     } catch (error) {
@@ -178,6 +183,20 @@ export const Create: React.FC = () => {
     } finally {
       setIsCreatingAccount(false);
     }
+  };
+
+  const handleCreatedWarpcastShare = async () => {
+    await sdk.actions.composeCast({
+      text: "I just created my $ENB mining account. I am looking for an account activation code",
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
+    });
+  };
+
+  const handleActivatedWarpcastShare = async () => {
+    await sdk.actions.composeCast({
+      text: "I just activated my account. I am now earning $ENB everyday! Join me and use my activation code",
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=airtimeplus-miniapp.vercel.app"]
+    });
   };
 
   const handleActivateAccount = async (e: FormEvent) => {
@@ -202,7 +221,9 @@ export const Create: React.FC = () => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Activation failed');
 
-      alert(`Account activated! Membership level: ${data.membershipLevel}`);
+      setShowActivatedModal(true);
+      setAccountCreated(true);
+      setHasUnactivatedAccount(false);
     } catch (error) {
       console.error('Activation failed:', error);
       alert(error instanceof Error ? error.message : 'Activation failed');
@@ -259,6 +280,61 @@ export const Create: React.FC = () => {
           </form>
         </div>
       )}
+
+      {/* Created Modal */}
+      {showCreatedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Account Created Successfully
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your mining account has been created successfully.
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={() => setShowCreatedModal(false)}>
+                Dismiss
+              </Button>
+              <Button onClick={handleCreatedWarpcastShare} variant="outline">
+                Share on Farcaster
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Activated Modal */}
+      {showActivatedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Account has been activated!
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your account has been activated successfully.
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={() => setShowActivatedModal(false)}>
+                Continue
+              </Button>
+              <Button onClick={handleActivatedWarpcastShare} variant="outline">
+                Share on Farcaster
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

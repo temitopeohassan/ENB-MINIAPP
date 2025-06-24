@@ -289,6 +289,8 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
       lastCheckinTime: data.lastCheckIn && data.lastCheckIn.toDate ? data.lastCheckIn.toDate().toISOString() : (data.lastCheckIn ? data.lastCheckIn.toISOString() : null),
       consecutiveDays: data.consecutiveDays || 0,
       totalEarned: data.totalEarned || 0,
+      isActivated: data.isActivated || false,
+      activatedAt: data.activatedAt && data.activatedAt.toDate ? data.activatedAt.toDate().toISOString() : (data.activatedAt ? data.activatedAt.toISOString() : null),
       joinDate: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt ? data.createdAt.toISOString() : null)
     };
 
