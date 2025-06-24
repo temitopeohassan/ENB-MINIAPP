@@ -23,16 +23,12 @@ const DIVVI_CONFIG = {
   ]
 };
 
-interface SetActiveTab {
-  refreshUserAccountAction: () => Promise<void>;
-}
-
 interface User {
   walletAddress: string;
   isActivated: boolean;
 }
 
-export function Create({ setActiveTab }: SetActiveTab) {
+export function Create() {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
@@ -206,8 +202,6 @@ export function Create({ setActiveTab }: SetActiveTab) {
       if (!response.ok) throw new Error(data.error || 'Activation failed');
 
       alert(`Account activated! Membership level: ${data.membershipLevel}`);
-
-      await refreshUserAccountAction();
     } catch (error) {
       console.error('Activation failed:', error);
       alert(error instanceof Error ? error.message : 'Activation failed');

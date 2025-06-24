@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
@@ -17,11 +17,7 @@ interface UserProfile {
   isActivated: boolean;
 }
 
-interface AccountProps {
-  setActiveTab: (tab: string) => void;
-}
-
-export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
+export const Account: React.FC = () => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
@@ -51,7 +47,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
       minute: '2-digit',
     });
 
-  const checkAccountStatus = async () => {
+  const checkAccountStatus = useCallback(async () => {
     if (!address) {
       setError('No wallet connected');
       setLoading(false);
@@ -95,7 +91,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [address]);
 
   const refreshProfile = async () => {
     if (!address) return;
@@ -182,7 +178,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
   // Check account status when component mounts or address changes
   useEffect(() => {
     checkAccountStatus();
-  }, [address]);
+  }, [checkAccountStatus]);
 
   // Loading state
   if (loading) {
@@ -206,7 +202,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
             <p>Your account has not been created. Please create an account to get started.</p>
           </div>
           <button
-            onClick={() => setActiveTab('create')}
+            onClick={() => alert('Please create an account first')}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
           >
             Create Account
@@ -225,7 +221,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
             <p>This account has not been activated. Please activate your account to continue.</p>
           </div>
           <button
-            onClick={() => setActiveTab('create')}
+            onClick={() => alert('Please activate your account first')}
             className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
           >
             Activate Account
