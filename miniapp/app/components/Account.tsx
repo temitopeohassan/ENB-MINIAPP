@@ -95,7 +95,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     } finally {
       setLoading(false);
     }
-  }, [address, setActiveTabAction]);
+  }, [address]);
 
   const refreshProfile = async () => {
     if (!address) return;
