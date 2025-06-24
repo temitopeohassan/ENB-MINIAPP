@@ -18,7 +18,7 @@ export default function App() {
   const [frameAdded, setFrameAdded] = useState(false);
   const { isConnected, address } = useAccount();
   const { connect } = useConnect();
-  const [activeTab, setActiveTab] = useState("account");
+  const [activeTab, setActiveTabAction] = useState("account");
   const { addFrame } = useAddFrame();
   const frameConnector = useMemo(() => farcasterFrame(), []);
 
@@ -117,8 +117,8 @@ export default function App() {
 
       <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
         <main className="flex-1">
-          {activeTab === "account" && <Account />}
-          {activeTab === "create" && <Create />}
+        {activeTab === "account" && <Account setActiveTab={setActiveTabAction} />}
+        {activeTab === "create" && <Create setActiveTab={setActiveTabAction} />}
         </main>
 
         <footer className="mt-2 pt-4 flex justify-center">ENB Mini App</footer>

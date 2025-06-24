@@ -28,7 +28,11 @@ interface User {
   isActivated: boolean;
 }
 
-export function Create() {
+interface CreateProps {
+  setActiveTabAction: (tab: string) => void;
+}
+
+export const Create: React.FC<CreateProps> = ({ setActiveTabAction }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 

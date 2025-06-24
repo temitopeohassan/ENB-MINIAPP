@@ -17,7 +17,11 @@ interface UserProfile {
   isActivated: boolean;
 }
 
-export const Account: React.FC = () => {
+interface AccountProps {
+  setActiveTabAction: (tab: string) => void;
+}
+
+export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
@@ -91,7 +95,7 @@ export const Account: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, [address, setActiveTabAction]);
 
   const refreshProfile = async () => {
     if (!address) return;
@@ -202,7 +206,7 @@ export const Account: React.FC = () => {
             <p>Your account has not been created. Please create an account to get started.</p>
           </div>
           <button
-            onClick={() => alert('Please create an account first')}
+            onClick={() => setActiveTabAction('create')}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
           >
             Create Account
@@ -221,7 +225,7 @@ export const Account: React.FC = () => {
             <p>This account has not been activated. Please activate your account to continue.</p>
           </div>
           <button
-            onClick={() => alert('Please activate your account first')}
+            onClick={() => setActiveTabAction('create')}
             className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
           >
             Activate Account
