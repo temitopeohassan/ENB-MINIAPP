@@ -169,10 +169,22 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
 
     setActionLoading(true);
     try {
+      // First, interact with the smart contract
+      const txHash = await writeContractAsync({
+        address: ENB_MINI_APP_ADDRESS,
+        abi: ENB_MINI_APP_ABI,
+        functionName: 'checkin',
+        args: [address],
+      });
+
+      // Then submit to the API endpoint with transaction hash
       const res = await fetch(`${API_BASE_URL}/api/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: address }),
+        body: JSON.stringify({ 
+          walletAddress: address,
+          transactionHash: txHash 
+        }),
       });
 
       const data = await res.json();
