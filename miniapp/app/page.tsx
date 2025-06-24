@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { Button } from "./components/Button";
 import { Icon } from "./components/Icon";
 import { Account } from "./components/Account";
+import { Create } from "./components/Create";
 import { useAccount, useConnect } from "wagmi";
 import { farcasterFrame } from '@farcaster/frame-wagmi-connector';
 import Image from "next/image";
@@ -17,7 +18,7 @@ export default function App() {
   const [frameAdded, setFrameAdded] = useState(false);
   const { isConnected, address } = useAccount();
   const { connect } = useConnect();
-
+  const [activeTab, setActiveTab] = useState("account");
   const { addFrame } = useAddFrame();
   const frameConnector = useMemo(() => farcasterFrame(), []);
 
@@ -115,9 +116,11 @@ export default function App() {
       </header>
 
       <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
-        <main className="flex-1">
-            <Account />
+      <main className="flex-1">
+          {activeTab === "account" && <Account setActiveTab={setActiveTab} />}
+          {activeTab === "create" && <Create setActiveTab={setActiveTab} />}
         </main>
+
         <footer className="mt-2 pt-4 flex justify-center">ENB Mini App</footer>
       </div>
     </div>

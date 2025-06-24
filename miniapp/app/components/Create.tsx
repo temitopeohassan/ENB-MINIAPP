@@ -23,7 +23,7 @@ const DIVVI_CONFIG = {
   ]
 };
 
-interface CreateProps {
+interface SetActiveTab {
   refreshUserAccountAction: () => Promise<void>;
 }
 
@@ -32,7 +32,7 @@ interface User {
   isActivated: boolean;
 }
 
-export function Create({ refreshUserAccountAction }: CreateProps) {
+export function Create({ setActiveTab }: SetActiveTab) {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 

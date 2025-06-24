@@ -18,10 +18,10 @@ interface UserProfile {
 }
 
 interface AccountProps {
-  onRedirectToCreate?: () => void;
+  setActiveTab: (tab: string) => void;
 }
 
-export const Account: React.FC<AccountProps> = ({ onRedirectToCreate }) => {
+export const Account: React.FC<AccountProps> = ({ setActiveTab }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
@@ -65,13 +65,9 @@ export const Account: React.FC<AccountProps> = ({ onRedirectToCreate }) => {
       const res = await fetch(`${API_BASE_URL}/api/profile/${address}`);
       
       if (res.status === 404) {
-        // Account doesn't exist
-        if (onRedirectToCreate) {
-          onRedirectToCreate();
-          return;
-        }
-        // If no redirect callback, show a placeholder or create account message
-        setError('Account not found. Please create an account first.');
+        // Account doesn't exist, show create message
+        setProfile(null);
+        setError('not_created');
         setLoading(false);
         return;
       }
@@ -84,13 +80,9 @@ export const Account: React.FC<AccountProps> = ({ onRedirectToCreate }) => {
       
       // Check if account is not activated
       if (!userProfile.isActivated) {
-        // Account exists but not activated
-        if (onRedirectToCreate) {
-          onRedirectToCreate();
-          return;
-        }
-        // If no redirect callback, show account with activation message
+        // Account exists but not activated, show activation message
         setProfile(userProfile);
+        setError('not_activated');
         setLoading(false);
         return;
       }
@@ -204,8 +196,46 @@ export const Account: React.FC<AccountProps> = ({ onRedirectToCreate }) => {
     );
   }
 
-  // Error state
-  if (error) {
+  // Error/Special states
+  if (error === 'not_created') {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center max-w-md">
+          <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-6 py-4 rounded-lg mb-6">
+            <h2 className="text-lg font-semibold mb-2">Account Not Found</h2>
+            <p>Your account has not been created. Please create an account to get started.</p>
+          </div>
+          <button
+            onClick={() => setActiveTab('create')}
+            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            Create Account
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (error === 'not_activated') {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center max-w-md">
+          <div className="bg-orange-100 border border-orange-400 text-orange-700 px-6 py-4 rounded-lg mb-6">
+            <h2 className="text-lg font-semibold mb-2">Account Not Activated</h2>
+            <p>This account has not been activated. Please activate your account to continue.</p>
+          </div>
+          <button
+            onClick={() => setActiveTab('create')}
+            className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-medium"
+          >
+            Activate Account
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && error !== 'not_created' && error !== 'not_activated') {
     return (
       <div className="flex items-center justify-center min-h-64">
         <div className="text-center">
