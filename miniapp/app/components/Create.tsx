@@ -28,9 +28,8 @@ interface User {
   isActivated: boolean;
 }
 
-interface CreateProps {}
 
-export const Create: React.FC<CreateProps> = () => {
+export const Create: React.FC = () => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
