@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
+import { Button } from "./Button";
+import { Icon } from "./Icon";
+import { sdk } from '@farcaster/frame-sdk'
 
 interface UserProfile {
   walletAddress: string;
@@ -24,11 +27,22 @@ interface AccountProps {
 export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showBoosterModal, setShowBoosterModal] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // Countdown state
+  const [timeLeft, setTimeLeft] = useState<{
+    hours: number;
+    minutes: number;
+    seconds: number;
+  }>({ hours: 0, minutes: 0, seconds: 0 });
+  const [canCheckIn, setCanCheckIn] = useState(false);
 
   const getMembershipLevelColor = (level: string) => {
     switch (level) {
@@ -50,6 +64,42 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       hour: '2-digit',
       minute: '2-digit',
     });
+
+  // Calculate time remaining until next check-in
+  const calculateTimeLeft = useCallback((lastCheckinTime: string | null) => {
+    if (!lastCheckinTime) {
+      setCanCheckIn(true);
+      setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+      return;
+    }
+
+    const lastCheckin = new Date(lastCheckinTime);
+    const nextCheckin = new Date(lastCheckin.getTime() + 24 * 60 * 60 * 1000); // Add 24 hours
+    const now = new Date();
+    const timeDiff = nextCheckin.getTime() - now.getTime();
+
+    if (timeDiff <= 0) {
+      setCanCheckIn(true);
+      setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
+    } else {
+      setCanCheckIn(false);
+      const hours = Math.floor(timeDiff / (1000 * 60 * 60));
+      const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+      setTimeLeft({ hours, minutes, seconds });
+    }
+  }, []);
+
+  // Update countdown every second
+  useEffect(() => {
+    if (!profile?.lastCheckinTime) return;
+
+    const interval = setInterval(() => {
+      calculateTimeLeft(profile.lastCheckinTime || null);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [profile?.lastCheckinTime, calculateTimeLeft]);
 
   const checkAccountStatus = useCallback(async () => {
     if (!address) {
@@ -89,13 +139,15 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
 
       // Account exists and is activated, show profile
       setProfile(userProfile);
+      // Calculate initial countdown
+      calculateTimeLeft(userProfile.lastCheckinTime || null);
     } catch (err) {
       console.error('Error checking account status:', err);
       setError('Failed to load account information');
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, [address, calculateTimeLeft]);
 
   const refreshProfile = async () => {
     if (!address) return;
@@ -105,6 +157,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       if (res.ok) {
         const updated = await res.json();
         setProfile(updated);
+        calculateTimeLeft(updated.lastCheckinTime || null);
       }
     } catch (err) {
       console.error('Error refreshing profile:', err);
@@ -112,7 +165,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   };
 
   const handleCheckin = async () => {
-    if (!address) return;
+    if (!address || !canCheckIn) return;
 
     setActionLoading(true);
     try {
@@ -125,7 +178,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Check-in failed');
 
-      alert(`Check-in successful! You earned ${data.reward} ENB`);
+      setShowCheckInModal(true);
       await refreshProfile();
     } catch (err) {
       console.error(err);
@@ -133,6 +186,24 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleCheckInWarpcastShare = async () => {
+    await sdk.actions.composeCast({
+      text: "I just checked in to earn $ENB. Join me and start earning now!",
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
+    });
+  };
+
+  const handleUpgradeWarpcastShare = async () => {
+    await sdk.actions.composeCast({
+      text: "I just upgraded my mining account to increase my daily earnings!Join me and start earning NOW!",
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=airtimeplus-miniapp.vercel.app"]
+    });
+  };
+
+  const handleBooster = async () => {
+    setShowBoosterModal(true);   
   };
 
   const handleUpgrade = async () => {
@@ -169,7 +240,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upgrade failed');
 
-      alert('Upgrade successful!');
+      setShowUpgradeModal(true);
       await refreshProfile();
     } catch (err) {
       console.error(err);
@@ -279,7 +350,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
             </div>
             {profile.invitationCode && (
               <div>
-                <label className="text-sm font-medium text-gray-600">Invitation Code</label>
+                <label className="text-sm font-medium text-gray-600">Activation Code</label>
                 <p className="text-gray-800 font-mono">{profile.invitationCode}</p>
               </div>
             )}
@@ -336,17 +407,77 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
           </div>
         </div>
 
-        {/* Actions */}
+        {/* Check In Actions */}
         <div className="bg-white p-6 rounded-lg shadow-md border">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Actions</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Check In</h2>
+          <div className="space-y-4">
+            {/* Countdown Timer */}
+            {!canCheckIn && (
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <div className="text-sm text-gray-600 mb-2">Next check-in available in:</div>
+                <div className="text-2xl font-bold text-gray-800 font-mono">
+                  {String(timeLeft.hours).padStart(2, '0')}:
+                  {String(timeLeft.minutes).padStart(2, '0')}:
+                  {String(timeLeft.seconds).padStart(2, '0')}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">HH:MM:SS</div>
+              </div>
+            )}
+
+            {/* Check-in Available Message */}
+            {canCheckIn && profile.lastCheckinTime && (
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <div className="text-sm text-green-600 font-medium">
+                  ✓ Check-in is now available!
+                </div>
+              </div>
+            )}
+
+            {/* First Time Check-in Message */}
+            {canCheckIn && !profile.lastCheckinTime && (
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-sm text-blue-600 font-medium">
+                  🎉 Ready for your first check-in!
+                </div>
+              </div>
+            )}
+
+            <button
+              disabled={actionLoading || !profile.isActivated || !canCheckIn}
+              onClick={handleCheckin}
+              className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                canCheckIn && profile.isActivated
+                  ? 'bg-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              } disabled:opacity-60`}
+            >
+              {actionLoading 
+                ? 'Checking in...' 
+                : canCheckIn 
+                ? 'Daily Check-in' 
+                : 'Check-in Unavailable'
+              }
+            </button>
+          </div>
+        </div>
+
+        {/* Boosters*/}
+        <div className="bg-white p-6 rounded-lg shadow-md border">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Boosters</h2>
           <div className="space-y-3">
             <button
-              disabled={actionLoading || !profile.isActivated}
-              onClick={handleCheckin}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+              onClick={handleBooster}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60"
             >
-              {actionLoading ? 'Checking in...' : 'Daily Check-in'}
+              Boosters
             </button>
+          </div>
+        </div>
+
+        {/* Upgrade */}
+        <div className="bg-white p-6 rounded-lg shadow-md border">
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Upgrade</h2>
+          <div className="space-y-3">
             <button
               disabled={actionLoading}
               onClick={handleUpgrade}
@@ -357,6 +488,84 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
           </div>
         </div>
       </div>
+
+      {/* Check In Modal */}
+      {showCheckInModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Checked In Successfully
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your have checked in successfully. Come back tomorrow to check in again
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={() => setShowCheckInModal(false)}>
+                Dismiss
+              </Button>
+              <Button onClick={handleCheckInWarpcastShare} variant="outline">
+                Share on Farpcaster
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Account Upgrade Successful
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your account has been upgraded successfully. Your daily check in yield has increased
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={() => setShowUpgradeModal(false)}>
+                Dismiss
+              </Button>
+              <Button onClick={handleUpgradeWarpcastShare} variant="outline">
+                Share on Farpcaster
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Booster Modal */}
+      {showBoosterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                Get Boosters (Coming Soon)
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                Boosters allow you to reduce the time in between check ins. Watch this space
+              </p>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={() => setShowBoosterModal(false)}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

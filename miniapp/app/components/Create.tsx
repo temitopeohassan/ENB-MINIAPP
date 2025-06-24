@@ -198,7 +198,7 @@ export const Create: React.FC<CreateProps> = ({ setActiveTabAction }) => {
   const handleActivatedWarpcastShare = async () => {
     await sdk.actions.composeCast({
       text: "I just activated my account. I am now earning $ENB everyday! Join me and use my activation code",
-      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=airtimeplus-miniapp.vercel.app"]
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
     });
   };
 
