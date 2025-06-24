@@ -117,7 +117,7 @@ export default function App() {
 
       <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
         <main className="flex-1">
-        {activeTab === "account" && <Account setActiveTab={setActiveTabAction} />}
+        {activeTab === "account" && <Account setActiveTabAction={setActiveTabAction} />}
         {activeTab === "create" && <Create />}
         </main>
 
