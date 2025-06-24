@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
@@ -18,15 +18,17 @@ interface UserProfile {
 }
 
 interface AccountProps {
-  userProfile: UserProfile;
+  onRedirectToCreate?: () => void;
 }
 
-export const Account: React.FC<AccountProps> = ({ userProfile }) => {
+export const Account: React.FC<AccountProps> = ({ onRedirectToCreate }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
+  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [profile, setProfile] = useState(userProfile); // local state for UI update after check-in or upgrade
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const getMembershipLevelColor = (level: string) => {
     switch (level) {
@@ -49,11 +51,71 @@ export const Account: React.FC<AccountProps> = ({ userProfile }) => {
       minute: '2-digit',
     });
 
+  const checkAccountStatus = async () => {
+    if (!address) {
+      setError('No wallet connected');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const res = await fetch(`${API_BASE_URL}/api/profile/${address}`);
+      
+      if (res.status === 404) {
+        // Account doesn't exist
+        if (onRedirectToCreate) {
+          onRedirectToCreate();
+          return;
+        }
+        // If no redirect callback, show a placeholder or create account message
+        setError('Account not found. Please create an account first.');
+        setLoading(false);
+        return;
+      }
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch profile');
+      }
+
+      const userProfile: UserProfile = await res.json();
+      
+      // Check if account is not activated
+      if (!userProfile.isActivated) {
+        // Account exists but not activated
+        if (onRedirectToCreate) {
+          onRedirectToCreate();
+          return;
+        }
+        // If no redirect callback, show account with activation message
+        setProfile(userProfile);
+        setLoading(false);
+        return;
+      }
+
+      // Account exists and is activated, show profile
+      setProfile(userProfile);
+    } catch (err) {
+      console.error('Error checking account status:', err);
+      setError('Failed to load account information');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const refreshProfile = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/profile/${address}`);
-    if (res.ok) {
-      const updated = await res.json();
-      setProfile(updated);
+    if (!address) return;
+    
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/profile/${address}`);
+      if (res.ok) {
+        const updated = await res.json();
+        setProfile(updated);
+      }
+    } catch (err) {
+      console.error('Error refreshing profile:', err);
     }
   };
 
@@ -124,6 +186,47 @@ export const Account: React.FC<AccountProps> = ({ userProfile }) => {
       setActionLoading(false);
     }
   };
+
+  // Check account status when component mounts or address changes
+  useEffect(() => {
+    checkAccountStatus();
+  }, [address]);
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking account status...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-64">
+        <div className="text-center">
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <p>{error}</p>
+          </div>
+          <button
+            onClick={checkAccountStatus}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // This should not render if profile is null due to redirects above
+  if (!profile) {
+    return null;
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
