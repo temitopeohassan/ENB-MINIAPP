@@ -118,7 +118,7 @@ export default function App() {
       <div className="w-full max-w-md mx-auto px-4 py-3 pt-20">
         <main className="flex-1">
         {activeTab === "account" && <Account setActiveTabAction={setActiveTabAction} />}
-        {activeTab === "create" && <Create />}
+        {activeTab === "create" && <Create setActiveTabAction={setActiveTabAction} />}
         </main>
 
         <footer className="mt-2 pt-4 flex justify-center">ENB Mini App</footer>

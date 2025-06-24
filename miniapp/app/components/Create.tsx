@@ -31,8 +31,11 @@ interface User {
   isActivated: boolean;
 }
 
+interface CreateProps {
+  setActiveTabAction: (tab: string) => void;
+}
 
-export const Create: React.FC = () => {
+export const Create: React.FC<CreateProps> = ({ setActiveTabAction }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
 
@@ -324,7 +327,10 @@ export const Create: React.FC = () => {
               </p>
             </div>
             <div className="flex justify-center space-x-4">
-              <Button onClick={() => setShowActivatedModal(false)}>
+              <Button onClick={() => {
+                setShowActivatedModal(false);
+                setActiveTabAction("account");
+              }}>
                 Continue
               </Button>
               <Button onClick={handleActivatedWarpcastShare} variant="outline">
