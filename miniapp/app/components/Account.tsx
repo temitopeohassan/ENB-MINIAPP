@@ -215,6 +215,14 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     });
   };
 
+
+  const handleInvitationCode = async () => {
+    await sdk.actions.composeCast({
+      text: `Use my invitation code to start earning $ENB and start earning now! ${profile?.invitationCode}`,
+      embeds: ["https://enb-crushers.vercel.app/og-image.png"]
+    });
+  };
+
   const handleBooster = async () => {
     setShowBoosterModal(true);   
   };
@@ -371,6 +379,16 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                 <p className="text-gray-800 font-mono">{profile.invitationCode}</p>
               </div>
             )}
+            <div>
+            <div className="space-y-3">
+            <button
+              onClick={handleInvitationCode}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60"
+            >
+              Share Invitation Code
+            </button>
+            </div>
+            </div>
             <div>
               <label className="text-sm font-medium text-gray-600">Status</label>
               <p className={`font-semibold ${profile.isActivated ? 'text-green-600' : 'text-orange-600'}`}>
