@@ -92,7 +92,7 @@ export default function App() {
         <div className="w-full max-w-md mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Image
-              src="/logo.png"
+              src="/header-logo.png"
               alt="ENB Mini App Logo"
               width={40}
               height={40}
