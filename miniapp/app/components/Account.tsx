@@ -529,10 +529,10 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
               {actionLoading ? 'Upgrading...' : 'Upgrade Mining Level'}
             </button>
           </div>
-          <div>
+          <div className="space-y-3">
             <button
               onClick={handleBuyENB}
-              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
+              className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-60"
             >
               Buy $ENB
             </button>
