@@ -211,14 +211,14 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const handleDailyClaimWarpcastShare = async () => {
     await sdk.actions.composeCast({
       text: `I just claimed my daily $ENB rewards! Join me and start earning now! ${profile?.invitationCode}`,
-      embeds: ["https://enb-crushers.vercel.app/og-image.png", "https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
     });
   };
 
   const handleUpgradeWarpcastShare = async () => {
     await sdk.actions.composeCast({
       text: "I just upgraded my mining account to increase my daily earnings! Join me and start earning NOW!",
-      embeds: ["https://enb-crushers.vercel.app/og-image.png", "https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
     });
   };
 
@@ -226,7 +226,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const handleInvitationCode = async () => {
     await sdk.actions.composeCast({
       text: `Use my invitation code to start earning $ENB and start earning now! ${profile?.invitationCode}`,
-      embeds: ["https://enb-crushers.vercel.app/og-image.png", "https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
+      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
     });
   };
 
