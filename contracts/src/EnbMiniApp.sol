@@ -4,24 +4,24 @@ pragma solidity ^0.8.19;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract EnbMiniApp is ReentrancyGuard, Pausable {
+contract EnbMiniApp is ReentrancyGuard, Pausable, Ownable {
     IERC20 public immutable enbToken;
-    address public immutable deployer;
 
     enum MembershipLevel { Based, SuperBased, Legendary }
 
     struct UserAccount {
         bool exists;
         MembershipLevel membershipLevel;
-        uint256 lastCheckinTime;
-        uint256 totalCheckins;
+        uint256 lastDailyClaimTime;
+        uint256 totalDailyClaims;
         uint256 totalYieldClaimed;
         uint256 accountCreatedAt;
     }
 
     struct LevelConfig {
-        uint256 checkinYield;
+        uint256 dailyClaimYield;
         uint256 upgradeRequirement;
         string name;
     }
@@ -29,12 +29,15 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
     mapping(address => UserAccount) public userAccounts;
     mapping(MembershipLevel => LevelConfig) public levelConfigs;
 
+    uint256 public constant DAILY_CLAIM_COOLDOWN = 24 hours;
+
     event AccountCreated(address indexed user, uint256 timestamp);
-    event CheckinCompleted(address indexed user, uint256 yieldAmount, uint256 timestamp);
+    event DailyClaimCompleted(address indexed user, uint256 yieldAmount, uint256 timestamp);
     event MembershipUpgraded(address indexed user, MembershipLevel newLevel, uint256 timestamp);
     event YieldDistributed(address indexed user, uint256 amount, string transactionType);
     event ContractPaused(uint256 timestamp);
     event ContractUnpaused(uint256 timestamp);
+    event TokensWithdrawn(address indexed owner, uint256 amount, uint256 timestamp);
 
     error AccountAlreadyExists();
     error AccountDoesNotExist();
@@ -43,7 +46,9 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
     error InsufficientContractBalance();
     error TransferFailed();
     error OnlySelfAllowed();
-    error DeployerCannotWithdraw();
+    error DailyClaimOnCooldown();
+    error InvalidAmount();
+    error InvalidRecipient();
 
     modifier onlySelf(address user) {
         if (msg.sender != user) {
@@ -52,33 +57,25 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         _;
     }
 
-    modifier notDeployer() {
-        if (msg.sender == deployer) {
-            revert DeployerCannotWithdraw();
-        }
-        _;
-    }
-
-    constructor(address _enbTokenAddress) {
+    constructor(address _enbTokenAddress) Ownable(msg.sender) {
         require(_enbTokenAddress != address(0), "Invalid token address");
 
         enbToken = IERC20(_enbTokenAddress);
-        deployer = msg.sender;
 
         levelConfigs[MembershipLevel.Based] = LevelConfig({
-            checkinYield: 5 * 10**18,
+            dailyClaimYield: 5 * 10**18,
             upgradeRequirement: 0,
             name: "Based"
         });
 
         levelConfigs[MembershipLevel.SuperBased] = LevelConfig({
-            checkinYield: 10 * 10**18,
+            dailyClaimYield: 10 * 10**18,
             upgradeRequirement: 5000 * 10**18,
             name: "Super Based"
         });
 
         levelConfigs[MembershipLevel.Legendary] = LevelConfig({
-            checkinYield: 15 * 10**18,
+            dailyClaimYield: 15 * 10**18,
             upgradeRequirement: 15000 * 10**18,
             name: "Legendary"
         });
@@ -92,8 +89,8 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         userAccounts[user] = UserAccount({
             exists: true,
             membershipLevel: MembershipLevel.Based,
-            lastCheckinTime: 0,
-            totalCheckins: 0,
+            lastDailyClaimTime: 0,
+            totalDailyClaims: 0,
             totalYieldClaimed: 0,
             accountCreatedAt: block.timestamp
         });
@@ -101,21 +98,26 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         emit AccountCreated(user, block.timestamp);
     }
 
-    function checkin(address user) external nonReentrant whenNotPaused onlySelf(user) notDeployer {
+    function dailyClaim(address user) external nonReentrant whenNotPaused onlySelf(user) {
         UserAccount storage account = userAccounts[user];
 
         if (!account.exists) {
             revert AccountDoesNotExist();
         }
 
-        uint256 yieldAmount = levelConfigs[account.membershipLevel].checkinYield;
+        // Check if daily claim cooldown has passed
+        if (account.lastDailyClaimTime + DAILY_CLAIM_COOLDOWN > block.timestamp) {
+            revert DailyClaimOnCooldown();
+        }
+
+        uint256 yieldAmount = levelConfigs[account.membershipLevel].dailyClaimYield;
 
         if (enbToken.balanceOf(address(this)) < yieldAmount) {
             revert InsufficientContractBalance();
         }
 
-        account.lastCheckinTime = block.timestamp;
-        account.totalCheckins++;
+        account.lastDailyClaimTime = block.timestamp;
+        account.totalDailyClaims++;
         account.totalYieldClaimed += yieldAmount;
 
         bool success = enbToken.transfer(user, yieldAmount);
@@ -123,8 +125,8 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
             revert TransferFailed();
         }
 
-        emit CheckinCompleted(user, yieldAmount, block.timestamp);
-        emit YieldDistributed(user, yieldAmount, "checkin_yield");
+        emit DailyClaimCompleted(user, yieldAmount, block.timestamp);
+        emit YieldDistributed(user, yieldAmount, "daily_claim_yield");
     }
 
     function upgradeMembership(address user, MembershipLevel targetLevel) external nonReentrant whenNotPaused onlySelf(user) {
@@ -159,9 +161,13 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         address recipient,
         uint256 amount,
         string calldata transactionType
-    ) external nonReentrant notDeployer {
-        require(recipient != address(0), "Invalid recipient");
-        require(amount > 0, "Invalid amount");
+    ) external nonReentrant onlyOwner {
+        if (recipient == address(0)) {
+            revert InvalidRecipient();
+        }
+        if (amount == 0) {
+            revert InvalidAmount();
+        }
 
         if (enbToken.balanceOf(address(this)) < amount) {
             revert InsufficientContractBalance();
@@ -175,12 +181,43 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         emit YieldDistributed(recipient, amount, transactionType);
     }
 
-    function pause() external {
+    function withdrawTokens(uint256 amount) external nonReentrant onlyOwner {
+        if (amount == 0) {
+            revert InvalidAmount();
+        }
+
+        if (enbToken.balanceOf(address(this)) < amount) {
+            revert InsufficientContractBalance();
+        }
+
+        bool success = enbToken.transfer(owner(), amount);
+        if (!success) {
+            revert TransferFailed();
+        }
+
+        emit TokensWithdrawn(owner(), amount, block.timestamp);
+    }
+
+    function withdrawAllTokens() external nonReentrant onlyOwner {
+        uint256 balance = enbToken.balanceOf(address(this));
+        if (balance == 0) {
+            revert InvalidAmount();
+        }
+
+        bool success = enbToken.transfer(owner(), balance);
+        if (!success) {
+            revert TransferFailed();
+        }
+
+        emit TokensWithdrawn(owner(), balance, block.timestamp);
+    }
+
+    function pause() external onlyOwner {
         _pause();
         emit ContractPaused(block.timestamp);
     }
 
-    function unpause() external {
+    function unpause() external onlyOwner {
         _unpause();
         emit ContractUnpaused(block.timestamp);
     }
@@ -189,8 +226,8 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
     function getUserProfile(address user) external view returns (
         bool exists,
         MembershipLevel membershipLevel,
-        uint256 lastCheckinTime,
-        uint256 totalCheckins,
+        uint256 lastDailyClaimTime,
+        uint256 totalDailyClaims,
         uint256 totalYieldClaimed,
         uint256 accountCreatedAt
     ) {
@@ -198,15 +235,15 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         return (
             account.exists,
             account.membershipLevel,
-            account.lastCheckinTime,
-            account.totalCheckins,
+            account.lastDailyClaimTime,
+            account.totalDailyClaims,
             account.totalYieldClaimed,
             account.accountCreatedAt
         );
     }
 
-    function calculateCheckinYield(MembershipLevel level) external view returns (uint256) {
-        return levelConfigs[level].checkinYield;
+    function calculateDailyClaimYield(MembershipLevel level) external view returns (uint256) {
+        return levelConfigs[level].dailyClaimYield;
     }
 
     function getMembershipRequirements(MembershipLevel currentLevel) external view returns (
@@ -227,12 +264,34 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
         return userAccounts[user].exists;
     }
 
-    function getLastCheckinTime(address user) external view returns (uint256) {
-        return userAccounts[user].lastCheckinTime;
+    function getLastDailyClaimTime(address user) external view returns (uint256) {
+        return userAccounts[user].lastDailyClaimTime;
     }
 
-    function getTotalCheckins(address user) external view returns (uint256) {
-        return userAccounts[user].totalCheckins;
+    function getTotalDailyClaims(address user) external view returns (uint256) {
+        return userAccounts[user].totalDailyClaims;
+    }
+
+    function canClaimDaily(address user) external view returns (bool) {
+        UserAccount storage account = userAccounts[user];
+        if (!account.exists) {
+            return false;
+        }
+        return account.lastDailyClaimTime + DAILY_CLAIM_COOLDOWN <= block.timestamp;
+    }
+
+    function getTimeUntilNextClaim(address user) external view returns (uint256) {
+        UserAccount storage account = userAccounts[user];
+        if (!account.exists) {
+            return 0;
+        }
+        
+        uint256 nextClaimTime = account.lastDailyClaimTime + DAILY_CLAIM_COOLDOWN;
+        if (nextClaimTime <= block.timestamp) {
+            return 0;
+        }
+        
+        return nextClaimTime - block.timestamp;
     }
 
     function getContractBalance() external view returns (uint256) {
@@ -241,9 +300,5 @@ contract EnbMiniApp is ReentrancyGuard, Pausable {
 
     function getEnbTokenAddress() external view returns (address) {
         return address(enbToken);
-    }
-
-    function getDeployerAddress() external view returns (address) {
-        return deployer;
     }
 }

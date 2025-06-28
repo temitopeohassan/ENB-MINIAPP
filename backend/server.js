@@ -104,7 +104,7 @@ app.post('/api/create-account', async (req, res) => {
       membershipLevel: 'Based',
       invitationCode,
       createdAt: new Date(),
-      lastCheckIn: null,
+      lastDailyClaimTime: null,
       consecutiveDays: 0,
       enbBalance: 0,
       totalEarned: 0,
@@ -118,7 +118,6 @@ app.post('/api/create-account', async (req, res) => {
     return res.status(500).json({ error: 'Failed to create account' });
   }
 });
-
 
 // Create default user with limited invitation code
 app.post('/api/create-default-user', async (req, res) => {
@@ -147,7 +146,7 @@ app.post('/api/create-default-user', async (req, res) => {
       maxInvitationUses: maxUses || 105, // Default to 105 uses
       currentInvitationUses: 0,
       createdAt: new Date(),
-      lastCheckIn: null,
+      lastDailyClaimTime: null,
       consecutiveDays: 0,
       enbBalance: 0,
       totalEarned: 0,
@@ -286,7 +285,7 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
       membershipLevel: data.membershipLevel || 'Based',
       invitationCode: data.invitationCode || null,
       enbBalance: data.enbBalance || 0,
-      lastCheckinTime: data.lastCheckIn && data.lastCheckIn.toDate ? data.lastCheckIn.toDate().toISOString() : (data.lastCheckIn ? data.lastCheckIn.toISOString() : null),
+      lastDailyClaimTime: data.lastDailyClaimTime && data.lastDailyClaimTime.toDate ? data.lastDailyClaimTime.toDate().toISOString() : (data.lastDailyClaimTime ? data.lastDailyClaimTime.toISOString() : null),
       consecutiveDays: data.consecutiveDays || 0,
       totalEarned: data.totalEarned || 0,
       isActivated: data.isActivated || false,
@@ -301,12 +300,12 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
   }
 });
 
-// Check-in functionality
-app.post('/api/checkin', async (req, res) => {
-  const { walletAddress } = req.body;
+// Daily claim functionality
+app.post('/api/daily-claim', async (req, res) => {
+  const { walletAddress, transactionHash } = req.body;
 
-  if (!walletAddress) {
-    return res.status(400).json({ error: 'Missing wallet address' });
+  if (!walletAddress || !transactionHash) {
+    return res.status(400).json({ error: 'Missing wallet address or transaction hash' });
   }
 
   try {
@@ -326,13 +325,13 @@ app.post('/api/checkin', async (req, res) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    // Check if user already checked in today
-    if (accountData.lastCheckIn) {
-      const lastCheckIn = accountData.lastCheckIn.toDate();
-      const lastCheckInDate = new Date(lastCheckIn.getFullYear(), lastCheckIn.getMonth(), lastCheckIn.getDate());
+    // Check if user already claimed today
+    if (accountData.lastDailyClaimTime) {
+      const lastClaim = accountData.lastDailyClaimTime.toDate();
+      const lastClaimDate = new Date(lastClaim.getFullYear(), lastClaim.getMonth(), lastClaim.getDate());
       
-      if (lastCheckInDate.getTime() === today.getTime()) {
-        return res.status(400).json({ error: 'Already checked in today' });
+      if (lastClaimDate.getTime() === today.getTime()) {
+        return res.status(400).json({ error: 'Already claimed today' });
       }
     }
 
@@ -340,12 +339,12 @@ app.post('/api/checkin', async (req, res) => {
     let consecutiveDays = 1;
     let enbReward = 10; // Base reward
 
-    if (accountData.lastCheckIn) {
-      const lastCheckIn = accountData.lastCheckIn.toDate();
+    if (accountData.lastDailyClaimTime) {
+      const lastClaim = accountData.lastDailyClaimTime.toDate();
       const yesterday = new Date(today.getTime() - 24 * 60 * 60 * 1000);
-      const lastCheckInDate = new Date(lastCheckIn.getFullYear(), lastCheckIn.getMonth(), lastCheckIn.getDate());
+      const lastClaimDate = new Date(lastClaim.getFullYear(), lastClaim.getMonth(), lastClaim.getDate());
 
-      if (lastCheckInDate.getTime() === yesterday.getTime()) {
+      if (lastClaimDate.getTime() === yesterday.getTime()) {
         consecutiveDays = (accountData.consecutiveDays || 0) + 1;
         // Bonus for consecutive days (max 5x multiplier)
         const multiplier = Math.min(consecutiveDays, 5);
@@ -364,27 +363,28 @@ app.post('/api/checkin', async (req, res) => {
 
     // Update account
     await accountRef.update({
-      lastCheckIn: now,
+      lastDailyClaimTime: now,
       consecutiveDays: consecutiveDays,
       enbBalance: (accountData.enbBalance || 0) + finalReward,
-      totalEarned: (accountData.totalEarned || 0) + finalReward
+      totalEarned: (accountData.totalEarned || 0) + finalReward,
+      lastTransactionHash: transactionHash
     });
 
     return res.status(200).json({
-      message: 'Check-in successful',
+      message: 'Daily claim successful',
       reward: finalReward,
       consecutiveDays: consecutiveDays,
       newBalance: (accountData.enbBalance || 0) + finalReward
     });
 
   } catch (error) {
-    console.error('Error during check-in:', error);
-    return res.status(500).json({ error: 'Failed to check in' });
+    console.error('Error during daily claim:', error);
+    return res.status(500).json({ error: 'Failed to process daily claim' });
   }
 });
 
-// Get check-in status
-app.get('/api/checkin-status/:walletAddress', async (req, res) => {
+// Get daily claim status
+app.get('/api/daily-claim-status/:walletAddress', async (req, res) => {
   const walletAddress = req.params.walletAddress;
 
   try {
@@ -398,29 +398,29 @@ app.get('/api/checkin-status/:walletAddress', async (req, res) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    let canCheckIn = true;
-    let lastCheckInToday = false;
+    let canClaim = true;
+    let lastClaimToday = false;
 
-    if (accountData.lastCheckIn) {
-      const lastCheckIn = accountData.lastCheckIn.toDate();
-      const lastCheckInDate = new Date(lastCheckIn.getFullYear(), lastCheckIn.getMonth(), lastCheckIn.getDate());
+    if (accountData.lastDailyClaimTime) {
+      const lastClaim = accountData.lastDailyClaimTime.toDate();
+      const lastClaimDate = new Date(lastClaim.getFullYear(), lastClaim.getMonth(), lastClaim.getDate());
       
-      if (lastCheckInDate.getTime() === today.getTime()) {
-        canCheckIn = false;
-        lastCheckInToday = true;
+      if (lastClaimDate.getTime() === today.getTime()) {
+        canClaim = false;
+        lastClaimToday = true;
       }
     }
 
     return res.status(200).json({
-      canCheckIn,
-      lastCheckInToday,
+      canClaim,
+      lastClaimToday,
       consecutiveDays: accountData.consecutiveDays || 0,
-      lastCheckIn: accountData.lastCheckIn || null
+      lastDailyClaimTime: accountData.lastDailyClaimTime || null
     });
 
   } catch (error) {
-    console.error('Error fetching check-in status:', error);
-    return res.status(500).json({ error: 'Failed to fetch check-in status' });
+    console.error('Error fetching daily claim status:', error);
+    return res.status(500).json({ error: 'Failed to fetch daily claim status' });
   }
 });
 
@@ -711,18 +711,6 @@ app.get('/api/users', async (req, res) => {
     snapshot.forEach(doc => {
       const data = doc.data();
       
-      // Helper function to convert timestamp to ISO string
-      const convertTimestamp = (timestamp) => {
-        if (!timestamp) return null;
-        if (timestamp instanceof admin.firestore.Timestamp) {
-          return timestamp.toDate().toISOString();
-        }
-        if (timestamp.toISOString) {
-          return timestamp.toISOString();
-        }
-        return null;
-      };
-      
       users.push({
         id: doc.id,
         walletAddress: data.walletAddress,
@@ -736,7 +724,7 @@ app.get('/api/users', async (req, res) => {
         isActivated: data.isActivated || false,
         createdAt: data.createdAt && data.createdAt.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt ? data.createdAt.toISOString() : null),
         activatedAt: data.activatedAt && data.activatedAt.toDate ? data.activatedAt.toDate().toISOString() : (data.activatedAt ? data.activatedAt.toISOString() : null),
-        lastCheckIn: data.lastCheckIn && data.lastCheckIn.toDate ? data.lastCheckIn.toDate().toISOString() : (data.lastCheckIn ? data.lastCheckIn.toISOString() : null)
+        lastDailyClaimTime: data.lastDailyClaimTime && data.lastDailyClaimTime.toDate ? data.lastDailyClaimTime.toDate().toISOString() : (data.lastDailyClaimTime ? data.lastDailyClaimTime.toISOString() : null)
       });
     });
 

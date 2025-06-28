@@ -13,7 +13,7 @@ interface UserProfile {
   membershipLevel: 'Based' | 'Super Based' | 'Legendary' | string;
   invitationCode: string | null;
   enbBalance: number;
-  lastCheckinTime?: string | null;
+  lastDailyClaimTime?: string | null;
   consecutiveDays: number;
   totalEarned: number;
   joinDate?: string;
@@ -27,9 +27,10 @@ interface AccountProps {
 export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const { address } = useAccount();
   const { writeContractAsync } = useWriteContract();
-  const [showCheckInModal, setShowCheckInModal] = useState(false);
+  const [showDailyClaimModal, setShowDailyClaimModal] = useState(false);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showBoosterModal, setShowBoosterModal] = useState(false);
+  const [showInformationModal, setInformationModal] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -42,7 +43,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     minutes: number;
     seconds: number;
   }>({ hours: 0, minutes: 0, seconds: 0 });
-  const [canCheckIn, setCanCheckIn] = useState(false);
+  const [canClaim, setCanClaim] = useState(false);
 
   const getMembershipLevelColor = (level: string) => {
     switch (level) {
@@ -65,24 +66,24 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       minute: '2-digit',
     });
 
-  // Calculate time remaining until next check-in
-  const calculateTimeLeft = useCallback((lastCheckinTime: string | null) => {
-    if (!lastCheckinTime) {
-      setCanCheckIn(true);
+  // Calculate time remaining until next daily claim
+  const calculateTimeLeft = useCallback((lastDailyClaimTime: string | null) => {
+    if (!lastDailyClaimTime) {
+      setCanClaim(true);
       setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
       return;
     }
 
-    const lastCheckin = new Date(lastCheckinTime);
-    const nextCheckin = new Date(lastCheckin.getTime() + 24 * 60 * 60 * 1000); // Add 24 hours
+    const lastClaim = new Date(lastDailyClaimTime);
+    const nextClaim = new Date(lastClaim.getTime() + 24 * 60 * 60 * 1000); // Add 24 hours
     const now = new Date();
-    const timeDiff = nextCheckin.getTime() - now.getTime();
+    const timeDiff = nextClaim.getTime() - now.getTime();
 
     if (timeDiff <= 0) {
-      setCanCheckIn(true);
+      setCanClaim(true);
       setTimeLeft({ hours: 0, minutes: 0, seconds: 0 });
     } else {
-      setCanCheckIn(false);
+      setCanClaim(false);
       const hours = Math.floor(timeDiff / (1000 * 60 * 60));
       const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
@@ -92,14 +93,14 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
 
   // Update countdown every second
   useEffect(() => {
-    if (!profile?.lastCheckinTime) return;
+    if (!profile?.lastDailyClaimTime) return;
 
     const interval = setInterval(() => {
-      calculateTimeLeft(profile.lastCheckinTime || null);
+      calculateTimeLeft(profile.lastDailyClaimTime || null);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [profile?.lastCheckinTime, calculateTimeLeft]);
+  }, [profile?.lastDailyClaimTime, calculateTimeLeft]);
 
   const checkAccountStatus = useCallback(async () => {
     if (!address) {
@@ -140,7 +141,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       // Account exists and is activated, show profile
       setProfile(userProfile);
       // Calculate initial countdown
-      calculateTimeLeft(userProfile.lastCheckinTime || null);
+      calculateTimeLeft(userProfile.lastDailyClaimTime || null);
     } catch (err) {
       console.error('Error checking account status:', err);
       setError('Failed to load account information');
@@ -157,15 +158,15 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       if (res.ok) {
         const updated = await res.json();
         setProfile(updated);
-        calculateTimeLeft(updated.lastCheckinTime || null);
+        calculateTimeLeft(updated.lastDailyClaimTime || null);
       }
     } catch (err) {
       console.error('Error refreshing profile:', err);
     }
   };
 
-  const handleCheckin = async () => {
-    if (!address || !canCheckIn) return;
+  const handleDailyClaim = async () => {
+    if (!address || !canClaim) return;
 
     setActionLoading(true);
     try {
@@ -173,12 +174,12 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       const txHash = await writeContractAsync({
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
-        functionName: 'checkin',
+        functionName: 'dailyClaim',
         args: [address],
       });
 
       // Then submit to the API endpoint with transaction hash
-      const res = await fetch(`${API_BASE_URL}/api/checkin`, {
+      const res = await fetch(`${API_BASE_URL}/api/daily-claim`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -188,34 +189,38 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Check-in failed');
+      if (!res.ok) throw new Error(data.error || 'Daily claim failed');
 
-      setShowCheckInModal(true);
+      setShowDailyClaimModal(true);
       await refreshProfile();
     } catch (err) {
       console.error(err);
-      alert('Check-in failed. Please try again.');
+      alert('Daily claim failed. Please try again.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleCheckInWarpcastShare = async () => {
+  const handleDailyClaimWarpcastShare = async () => {
     await sdk.actions.composeCast({
-      text: "I just checked in to earn $ENB. Join me and start earning now!",
+      text: "I just claimed my daily $ENB rewards! Join me and start earning now!",
       embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
     });
   };
 
   const handleUpgradeWarpcastShare = async () => {
     await sdk.actions.composeCast({
-      text: "I just upgraded my mining account to increase my daily earnings!Join me and start earning NOW!",
+      text: "I just upgraded my mining account to increase my daily earnings! Join me and start earning NOW!",
       embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=airtimeplus-miniapp.vercel.app"]
     });
   };
 
   const handleBooster = async () => {
     setShowBoosterModal(true);   
+  };
+
+  const handleInformation = async () => {
+    setInformationModal(true);   
   };
 
   const handleUpgrade = async () => {
@@ -380,16 +385,18 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
           <h2 className="text-xl font-semibold mb-4 text-gray-800">Token Balance</h2>
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium text-gray-600">ENB Balance</label>
-              <p className="text-2xl font-bold text-green-600">
-                {profile.enbBalance.toLocaleString()} ENB
-              </p>
-            </div>
-            <div>
               <label className="text-sm font-medium text-gray-600">Total Earned</label>
               <p className="text-lg font-semibold text-blue-600">
                 {profile.totalEarned.toLocaleString()} ENB
               </p>
+            </div>
+            <div>
+            <button
+              onClick={handleInformation}
+              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60"
+            >
+              How To Earn
+            </button>
             </div>
           </div>
         </div>
@@ -405,9 +412,9 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
               </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">Last Check-in</label>
+              <label className="text-sm font-medium text-gray-600">Last Daily Claim</label>
               <p className="text-gray-800">
-                {profile.lastCheckinTime ? formatDate(profile.lastCheckinTime) : 'Never'}
+                {profile.lastDailyClaimTime ? formatDate(profile.lastDailyClaimTime) : 'Never'}
               </p>
             </div>
             {profile.joinDate && (
@@ -419,14 +426,14 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
           </div>
         </div>
 
-        {/* Check In Actions */}
+        {/* Daily Claim Actions */}
         <div className="bg-white p-6 rounded-lg shadow-md border">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800">Check In</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-800">Daily Claim</h2>
           <div className="space-y-4">
             {/* Countdown Timer */}
-            {!canCheckIn && (
+            {!canClaim && (
               <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600 mb-2">Next check-in available in:</div>
+                <div className="text-sm text-gray-600 mb-2">Next claim available in:</div>
                 <div className="text-2xl font-bold text-gray-800 font-mono">
                   {String(timeLeft.hours).padStart(2, '0')}:
                   {String(timeLeft.minutes).padStart(2, '0')}:
@@ -436,38 +443,38 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
               </div>
             )}
 
-            {/* Check-in Available Message */}
-            {canCheckIn && profile.lastCheckinTime && (
+            {/* Claim Available Message */}
+            {canClaim && profile.lastDailyClaimTime && (
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <div className="text-sm text-green-600 font-medium">
-                  ✓ Check-in is now available!
+                  ✓ Daily claim is now available!
                 </div>
               </div>
             )}
 
-            {/* First Time Check-in Message */}
-            {canCheckIn && !profile.lastCheckinTime && (
+            {/* First Time Claim Message */}
+            {canClaim && !profile.lastDailyClaimTime && (
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <div className="text-sm text-blue-600 font-medium">
-                  🎉 Ready for your first check-in!
+                  🎉 Ready for your first daily claim!
                 </div>
               </div>
             )}
 
             <button
-              disabled={actionLoading || !profile.isActivated || !canCheckIn}
-              onClick={handleCheckin}
+              disabled={actionLoading || !profile.isActivated || !canClaim}
+              onClick={handleDailyClaim}
               className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
-                canCheckIn && profile.isActivated
+                canClaim && profile.isActivated
                   ? 'bg-blue-600 text-white hover:bg-blue-700'
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               } disabled:opacity-60`}
             >
               {actionLoading 
-                ? 'Checking in...' 
-                : canCheckIn 
-                ? 'Daily Check-in' 
-                : 'Check-in Unavailable'
+                ? 'Claiming...' 
+                : canClaim 
+                ? 'Claim Daily Rewards' 
+                : 'Claim Unavailable'
               }
             </button>
           </div>
@@ -501,8 +508,8 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
         </div>
       </div>
 
-      {/* Check In Modal */}
-      {showCheckInModal && (
+      {/* Daily Claim Modal */}
+      {showDailyClaimModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
             <div className="text-center mb-6">
@@ -510,18 +517,18 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                 <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
               </div>
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                Checked In Successfully
+                Daily Claim Successful
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Your have checked in successfully. Come back tomorrow to check in again
+                You have successfully claimed your daily rewards. Come back tomorrow to claim again!
               </p>
             </div>
             <div className="flex justify-center space-x-4">
-              <Button onClick={() => setShowCheckInModal(false)}>
+              <Button onClick={() => setShowDailyClaimModal(false)}>
                 Dismiss
               </Button>
-              <Button onClick={handleCheckInWarpcastShare} variant="outline">
-                Share on Farpcaster
+              <Button onClick={handleDailyClaimWarpcastShare} variant="outline">
+                Share on Farcaster
               </Button>
             </div>
           </div>
@@ -540,7 +547,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                 Account Upgrade Successful
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Your account has been upgraded successfully. Your daily check in yield has increased
+                Your account has been upgraded successfully. Your daily claim yield has increased!
               </p>
             </div>
             <div className="flex justify-center space-x-4">
@@ -548,7 +555,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                 Dismiss
               </Button>
               <Button onClick={handleUpgradeWarpcastShare} variant="outline">
-                Share on Farpcaster
+                Share on Farcaster
               </Button>
             </div>
           </div>
@@ -567,7 +574,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                 Get Boosters (Coming Soon)
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Boosters allow you to reduce the time in between check ins. Watch this space
+                Boosters allow you to reduce the time between daily claims. Watch this space!
               </p>
             </div>
             <div className="flex justify-center space-x-4">
@@ -578,6 +585,36 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
           </div>
         </div>
       )}
+
+{/* Level Information Modal */}
+{showInformationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-6">
+              <div className="mx-auto w-12 h-12 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center mb-4">
+                <Icon name="check" size="lg" className="text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                How To Earn
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                On the Base Layer there are 3 levels to earn and each level has the daily earning
+              </p>
+		<ul>
+		  <li>Based - On this level(the first level) you earn 5 $ENB a day</li>
+		  <li>Super Based - As a Super Based member you earn 10 $ENB. To upgrade to super based you need a balance of 5000 $ENB in your wallet</li>
+		  <li>Legendary - The Legendary is the highest level allowing you to earn 15 $ENB everyday. To upgrade to Legendary your wallet should have 15,000 $ENB</li>
+		</ul>
+            </div>
+            <div className="flex justify-center space-x-4">
+              <Button onClick={() => setInformationModal(false)}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
