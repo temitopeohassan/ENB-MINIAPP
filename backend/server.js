@@ -280,10 +280,24 @@ app.get('/api/profile/:walletAddress', async (req, res) => {
 
     const data = doc.data();
     
+    // Get invitation usage data if user has an invitation code
+    let invitationUsage = null;
+    if (data.invitationCode) {
+      const maxUses = data.maxInvitationUses || 5;
+      const currentUses = data.currentInvitationUses || 0;
+      
+      invitationUsage = {
+        totalUses: currentUses,
+        maxUses: maxUses,
+        remainingUses: maxUses - currentUses
+      };
+    }
+    
     const profileData = {
       walletAddress: data.walletAddress,
       membershipLevel: data.membershipLevel || 'Based',
       invitationCode: data.invitationCode || null,
+      invitationUsage: invitationUsage,
       enbBalance: data.enbBalance || 0,
       lastDailyClaimTime: data.lastDailyClaimTime && data.lastDailyClaimTime.toDate ? data.lastDailyClaimTime.toDate().toISOString() : (data.lastDailyClaimTime ? data.lastDailyClaimTime.toISOString() : null),
       consecutiveDays: data.consecutiveDays || 0,
@@ -804,6 +818,62 @@ app.post('/api/update-membership', async (req, res) => {
   } catch (error) {
     console.error('Error updating membership level:', error);
     return res.status(500).json({ error: 'Failed to update membership level' });
+  }
+});
+
+// Get invitation code usage count
+app.get('/api/invitation-usage/:invitationCode', async (req, res) => {
+  const invitationCode = req.params.invitationCode;
+
+  if (!invitationCode) {
+    return res.status(400).json({ error: 'Invitation code is required' });
+  }
+
+  try {
+    // Get the inviter's account to check max uses
+    const inviterQuery = db.collection('accounts')
+      .where('invitationCode', '==', invitationCode)
+      .limit(1);
+    const inviterSnapshot = await inviterQuery.get();
+
+    if (inviterSnapshot.empty) {
+      return res.status(404).json({ error: 'Invitation code not found' });
+    }
+
+    const inviterData = inviterSnapshot.docs[0].data();
+    const maxUses = inviterData.maxInvitationUses || 5;
+    const currentUses = inviterData.currentInvitationUses || 0;
+
+    // Get detailed usage history
+    const usageQuery = db.collection('invitationUsage')
+      .where('invitationCode', '==', invitationCode)
+      .orderBy('usedAt', 'desc');
+    const usageSnapshot = await usageQuery.get();
+    
+    const usageHistory = [];
+    usageSnapshot.forEach(doc => {
+      const data = doc.data();
+      usageHistory.push({
+        id: doc.id,
+        usedBy: data.usedBy,
+        usedAt: data.usedAt.toISOString(),
+        inviterWallet: data.inviterWallet
+      });
+    });
+
+    return res.status(200).json({
+      invitationCode,
+      totalUses: currentUses,
+      maxUses: maxUses,
+      remainingUses: maxUses - currentUses,
+      usageHistory: usageHistory,
+      inviterWallet: inviterData.walletAddress,
+      isInviterActivated: inviterData.isActivated || false
+    });
+
+  } catch (error) {
+    console.error('Error fetching invitation usage:', error);
+    return res.status(500).json({ error: 'Failed to fetch invitation usage' });
   }
 });
 

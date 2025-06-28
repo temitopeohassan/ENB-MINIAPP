@@ -147,11 +147,7 @@ contract EnbMiniApp is ReentrancyGuard, Pausable, Ownable {
             revert InsufficientTokensForUpgrade();
         }
 
-        bool success = enbToken.transferFrom(user, address(this), requiredTokens);
-        if (!success) {
-            revert TransferFailed();
-        }
-
+        // No token transfer needed - just check balance and upgrade
         account.membershipLevel = targetLevel;
 
         emit MembershipUpgraded(user, targetLevel, block.timestamp);

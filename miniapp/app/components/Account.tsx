@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
-import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
+import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS, ENB_TOKEN_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
 import { Button } from "./Button";
 import { Icon } from "./Icon";
@@ -12,6 +12,11 @@ interface UserProfile {
   walletAddress: string;
   membershipLevel: 'Based' | 'Super Based' | 'Legendary' | string;
   invitationCode: string | null;
+  invitationUsage?: {
+    totalUses: number;
+    maxUses: number;
+    remainingUses: number;
+  } | null;
   enbBalance: number;
   lastDailyClaimTime?: string | null;
   consecutiveDays: number;
@@ -225,7 +230,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     });
   };
 
-  const url= "https://farcaster.xyz/kokocodes/0xc6499ac7";
+  const url= "https://farcaster.xyz/kokocodes/0xfb0d3293";
 
   const handleBuyENB = async () => {
     await sdk.actions.openUrl(url)
@@ -244,8 +249,8 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
 
     let targetLevel: number;
     switch (profile.membershipLevel) {
-      case 'Based': targetLevel = 1; break;
-      case 'Super Based': targetLevel = 2; break;
+      case 'Based': targetLevel = 1; break; // SuperBased = 1
+      case 'Super Based': targetLevel = 2; break; // Legendary = 2
       default:
         alert('You are already at the highest level!');
         return;
@@ -254,6 +259,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     setUpgradeLoading(true);
     setUpgradeError(null);
     try {
+      // Perform the upgrade - only checks wallet balance, no token transfer
       const txHash = await writeContractAsync({
         address: ENB_MINI_APP_ADDRESS,
         abi: ENB_MINI_APP_ABI,
@@ -288,6 +294,10 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
         setUpgradeError('Transaction was cancelled by user.');
       } else if (errorMessage.includes('execution reverted')) {
         setUpgradeError('Transaction failed. You may not have enough ENB tokens or the upgrade requirements are not met.');
+      } else if (errorMessage.includes('InsufficientTokensForUpgrade')) {
+        setUpgradeError('You do not have enough ENB tokens in your wallet to upgrade. You need 5,000 ENB for Super Based or 15,000 ENB for Legendary.');
+      } else if (errorMessage.includes('InvalidMembershipLevel')) {
+        setUpgradeError('Invalid upgrade request. You may already be at the highest level.');
       } else {
         setUpgradeError(`Upgrade failed: ${errorMessage}`);
       }
@@ -379,7 +389,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-xl font-semibold mb-2 text-gray-800">Account Profile</h1>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Basic Info */}
         <div className="bg-white p-6 rounded-lg shadow-md border">
           <h2 className="text-xl font-semibold mb-4 text-gray-800">Basic Information</h2>
@@ -400,15 +410,34 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                 <p className="text-gray-800 font-mono">{profile.invitationCode}</p>
               </div>
             )}
+            {profile.invitationUsage && (
+              <div>
+                <label className="text-sm font-medium text-gray-600">Invitation Usage</label>
+                <div className="mt-2 p-3 bg-blue-50 rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Total Users Activated:</span>
+                    <span className="font-semibold text-blue-600">{profile.invitationUsage.totalUses}</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm text-gray-600">Remaining Uses:</span>
+                    <span className="font-semibold text-green-600">{profile.invitationUsage.remainingUses}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Max Uses:</span>
+                    <span className="font-semibold text-gray-800">{profile.invitationUsage.maxUses}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <div>
-            <div className="space-y-3">
-            <button
-              onClick={handleInvitationCode}
-              className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60"
-            >
-              Share Invitation Code
-            </button>
-            </div>
+              <div className="space-y-3">
+                <button
+                  onClick={handleInvitationCode}
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-60"
+                >
+                  Share Invitation Code
+                </button>
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600">Status</label>
@@ -464,6 +493,41 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
             )}
           </div>
         </div>
+
+        {/* Invitation Statistics */}
+        {profile.invitationUsage && (
+          <div className="bg-white p-6 rounded-lg shadow-md border">
+            <h2 className="text-xl font-semibold mb-4 text-gray-800">Invitation Statistics</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">{profile.invitationUsage.totalUses}</div>
+                  <div className="text-sm text-gray-600">Total Users</div>
+                </div>
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">{profile.invitationUsage.remainingUses}</div>
+                  <div className="text-sm text-gray-600">Remaining</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="text-2xl font-bold text-gray-800">{profile.invitationUsage.maxUses}</div>
+                  <div className="text-sm text-gray-600">Max Uses</div>
+                </div>
+              </div>
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <div className="text-sm text-gray-600 mb-1">Progress</div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${(profile.invitationUsage.totalUses / profile.invitationUsage.maxUses) * 100}%` }}
+                  ></div>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {profile.invitationUsage.totalUses} of {profile.invitationUsage.maxUses} uses
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Daily Claim Actions */}
         <div className="bg-white p-6 rounded-lg shadow-md border">
@@ -545,8 +609,12 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm font-medium">Gas Fee Required</p>
-                  <p className="text-sm mt-1">You need ETH in your wallet to pay for gas fees when upgrading. Make sure you have some ETH before attempting the upgrade.</p>
+                  <p className="text-sm font-medium">Upgrade Requirements</p>
+                  <p className="text-sm mt-1">
+                    • You need ETH in your wallet to pay for gas fees<br/>
+                    • You need ENB tokens in your wallet: 5,000 ENB for Super Based, 15,000 ENB for Legendary<br/>
+                    • No tokens are transferred - only your balance is checked
+                  </p>
                 </div>
               </div>
             </div>
