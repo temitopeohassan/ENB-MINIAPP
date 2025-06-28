@@ -203,15 +203,15 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
 
   const handleDailyClaimWarpcastShare = async () => {
     await sdk.actions.composeCast({
-      text: "I just claimed my daily $ENB rewards! Join me and start earning now!",
-      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=enb-crushers.vercel.app"]
+      text: `I just claimed my daily $ENB rewards! Join me and start earning now! ${profile?.invitationCode}`,
+      embeds: ["https://enb-crushers.vercel.app/og-image.png"]
     });
   };
 
   const handleUpgradeWarpcastShare = async () => {
     await sdk.actions.composeCast({
       text: "I just upgraded my mining account to increase my daily earnings! Join me and start earning NOW!",
-      embeds: ["https://farcaster.xyz/~/mini-apps/launch?domain=airtimeplus-miniapp.vercel.app"]
+      embeds: ["https://enb-crushers.vercel.app/og-image.png"]
     });
   };
 
@@ -222,6 +222,12 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       embeds: ["https://enb-crushers.vercel.app/og-image.png"]
     });
   };
+
+  const url= "https://farcaster.xyz/arjantupan/0x98df9f15";
+
+  const handleBuyENB = async () => {
+    await sdk.actions.openUrl(url)
+      };
 
   const handleBooster = async () => {
     setShowBoosterModal(true);   
@@ -521,6 +527,14 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
               className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
             >
               {actionLoading ? 'Upgrading...' : 'Upgrade Mining Level'}
+            </button>
+          </div>
+          <div>
+            <button
+              onClick={handleBuyENB}
+              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
+            >
+              Buy $ENB
             </button>
           </div>
         </div>
