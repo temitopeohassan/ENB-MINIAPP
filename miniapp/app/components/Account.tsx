@@ -31,9 +31,11 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showBoosterModal, setShowBoosterModal] = useState(false);
   const [showInformationModal, setInformationModal] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [dailyClaimLoading, setDailyClaimLoading] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   
@@ -168,7 +170,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const handleDailyClaim = async () => {
     if (!address || !canClaim) return;
 
-    setActionLoading(true);
+    setDailyClaimLoading(true);
     try {
       // First, interact with the smart contract
       const txHash = await writeContractAsync({
@@ -197,7 +199,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       console.error(err);
       alert('Daily claim failed. Please try again.');
     } finally {
-      setActionLoading(false);
+      setDailyClaimLoading(false);
     }
   };
 
@@ -223,7 +225,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     });
   };
 
-  const url= "https://farcaster.xyz/arjantupan/0x98df9f15";
+  const url= "https://farcaster.xyz/kokocodes/0xc6499ac7";
 
   const handleBuyENB = async () => {
     await sdk.actions.openUrl(url)
@@ -249,7 +251,8 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
         return;
     }
 
-    setActionLoading(true);
+    setUpgradeLoading(true);
+    setUpgradeError(null);
     try {
       const txHash = await writeContractAsync({
         address: ENB_MINI_APP_ADDRESS,
@@ -275,9 +278,21 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
       await refreshProfile();
     } catch (err) {
       console.error(err);
-      alert('Upgrade failed. See console for details.');
+      
+      // Handle specific error types
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      
+      if (errorMessage.includes('insufficient funds') || errorMessage.includes('gas')) {
+        setUpgradeError('Insufficient ETH balance to cover gas fees. Please add some ETH to your wallet and try again.');
+      } else if (errorMessage.includes('user rejected') || errorMessage.includes('User rejected')) {
+        setUpgradeError('Transaction was cancelled by user.');
+      } else if (errorMessage.includes('execution reverted')) {
+        setUpgradeError('Transaction failed. You may not have enough ENB tokens or the upgrade requirements are not met.');
+      } else {
+        setUpgradeError(`Upgrade failed: ${errorMessage}`);
+      }
     } finally {
-      setActionLoading(false);
+      setUpgradeLoading(false);
     }
   };
 
@@ -486,7 +501,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
             )}
 
             <button
-              disabled={actionLoading || !profile.isActivated || !canClaim}
+              disabled={dailyClaimLoading || !profile.isActivated || !canClaim}
               onClick={handleDailyClaim}
               className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
                 canClaim && profile.isActivated
@@ -494,7 +509,7 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                   : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               } disabled:opacity-60`}
             >
-              {actionLoading 
+              {dailyClaimLoading 
                 ? 'Claiming...' 
                 : canClaim 
                 ? 'Claim Daily Rewards' 
@@ -521,14 +536,56 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
         <div className="bg-white p-6 rounded-lg shadow-md border">
           <h2 className="text-xl font-semibold mb-4 text-gray-800">Upgrade</h2>
           <div className="space-y-3">
+            {/* Helpful Note */}
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg mb-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium">Gas Fee Required</p>
+                  <p className="text-sm mt-1">You need ETH in your wallet to pay for gas fees when upgrading. Make sure you have some ETH before attempting the upgrade.</p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Upgrade Error Display */}
+            {upgradeError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium">{upgradeError}</p>
+                  </div>
+                  <div className="ml-auto pl-3">
+                    <button
+                      onClick={() => setUpgradeError(null)}
+                      className="inline-flex text-red-400 hover:text-red-600"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            
             <button
-              disabled={actionLoading}
+              disabled={upgradeLoading}
               onClick={handleUpgrade}
               className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
             >
-              {actionLoading ? 'Upgrading...' : 'Upgrade Mining Level'}
+              {upgradeLoading ? 'Upgrading...' : 'Upgrade Mining Level'}
             </button>
           </div>
+          <br />
           <div className="space-y-3">
             <button
               onClick={handleBuyENB}
