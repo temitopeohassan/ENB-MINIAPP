@@ -4,9 +4,27 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAccount, useWriteContract } from 'wagmi';
 import { ENB_MINI_APP_ABI, ENB_MINI_APP_ADDRESS } from '../constants/enbMiniAppAbi';
 import { API_BASE_URL } from '../config';
+import {
+  createWalletClient,
+  createPublicClient,
+  encodeFunctionData,
+  http,
+  custom,
+  EIP1193Provider
+} from 'viem';
+import { base } from 'viem/chains';
+import { getReferralTag, submitReferral } from '@divvi/referral-sdk';
 import { Button } from "./Button";
 import { Icon } from "./Icon";
 import { sdk } from '@farcaster/frame-sdk'
+
+const DIVVI_CONFIG = {
+  consumer: '0xaF108Dd1aC530F1c4BdED13f43E336A9cec92B44',
+  providers: [
+    '0x0423189886d7966f0dd7e7d256898daeee625dca',
+    '0xc95876688026be9d6fa7a7c33328bd013effa2bb'
+  ]
+};
 
 interface UserProfile {
   walletAddress: string;
@@ -177,13 +195,85 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
 
     setDailyClaimLoading(true);
     try {
-      // First, interact with the smart contract
-      const txHash = await writeContractAsync({
-        address: ENB_MINI_APP_ADDRESS,
+      const publicClient = createPublicClient({ chain: base, transport: http() });
+
+      const baseTxData = encodeFunctionData({
         abi: ENB_MINI_APP_ABI,
         functionName: 'dailyClaim',
-        args: [address],
+        args: [address]
       });
+
+      let finalTxData = baseTxData;
+      let referralTag = '';
+      let walletClient = null;
+
+      try {
+        if (typeof window === 'undefined' || !window.ethereum) {
+          throw new Error('Ethereum provider not found');
+        }
+
+        const ethereum = window.ethereum as EIP1193Provider;
+
+        walletClient = createWalletClient({
+          chain: base,
+          transport: custom(ethereum)
+        });
+
+        referralTag = getReferralTag({
+          user: address as `0x${string}`,
+          consumer: DIVVI_CONFIG.consumer as `0x${string}`,
+          providers: DIVVI_CONFIG.providers as `0x${string}`[]
+        });
+
+        finalTxData = (baseTxData + referralTag) as `0x${string}`;
+        console.log('Divvi referral tag added to daily claim transaction');
+      } catch (referralError) {
+        console.warn('Referral setup failed for daily claim:', referralError);
+      }
+
+      let gasEstimate;
+      try {
+        gasEstimate = await publicClient.estimateGas({
+          account: address,
+          to: ENB_MINI_APP_ADDRESS,
+          data: finalTxData
+        });
+      } catch {
+        gasEstimate = BigInt(100000); // fallback
+      }
+
+      let txHash: `0x${string}`;
+
+      if (window.ethereum) {
+        const txParams = {
+          from: address as `0x${string}`,
+          to: ENB_MINI_APP_ADDRESS as `0x${string}`,
+          data: finalTxData,
+          gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
+        };
+
+        txHash = await (window.ethereum as EIP1193Provider).request({
+          method: 'eth_sendTransaction',
+          params: [txParams]
+        }) as `0x${string}`;
+      } else {
+        txHash = await writeContractAsync({
+          address: ENB_MINI_APP_ADDRESS,
+          abi: ENB_MINI_APP_ABI,
+          functionName: 'dailyClaim',
+          args: [address]
+        }) as `0x${string}`;
+      }
+
+      if (walletClient && referralTag && txHash) {
+        try {
+          const chainId = await walletClient.getChainId();
+          await submitReferral({ txHash, chainId });
+          console.log('Divvi referral submitted for daily claim');
+        } catch (referralError) {
+          console.warn('Referral submission failed for daily claim:', referralError);
+        }
+      }
 
       // Then submit to the API endpoint with transaction hash
       const res = await fetch(`${API_BASE_URL}/api/daily-claim`, {
@@ -247,6 +337,13 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
   const handleUpgrade = async () => {
     if (!address || !profile) return;
 
+    // Check consecutive days requirement
+    const requiredDays = profile.membershipLevel === 'Based' ? 14 : 28;
+    if (profile.consecutiveDays < requiredDays) {
+      setUpgradeError(`You need ${requiredDays} consecutive days of daily claims to upgrade. You currently have ${profile.consecutiveDays} days.`);
+      return;
+    }
+
     let targetLevel: number;
     switch (profile.membershipLevel) {
       case 'Based': targetLevel = 1; break; // SuperBased = 1
@@ -259,13 +356,85 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
     setUpgradeLoading(true);
     setUpgradeError(null);
     try {
-      // Perform the upgrade - only checks wallet balance, no token transfer
-      const txHash = await writeContractAsync({
-        address: ENB_MINI_APP_ADDRESS,
+      const publicClient = createPublicClient({ chain: base, transport: http() });
+
+      const baseTxData = encodeFunctionData({
         abi: ENB_MINI_APP_ABI,
         functionName: 'upgradeMembership',
-        args: [address, targetLevel],
+        args: [address, targetLevel]
       });
+
+      let finalTxData = baseTxData;
+      let referralTag = '';
+      let walletClient = null;
+
+      try {
+        if (typeof window === 'undefined' || !window.ethereum) {
+          throw new Error('Ethereum provider not found');
+        }
+
+        const ethereum = window.ethereum as EIP1193Provider;
+
+        walletClient = createWalletClient({
+          chain: base,
+          transport: custom(ethereum)
+        });
+
+        referralTag = getReferralTag({
+          user: address as `0x${string}`,
+          consumer: DIVVI_CONFIG.consumer as `0x${string}`,
+          providers: DIVVI_CONFIG.providers as `0x${string}`[]
+        });
+
+        finalTxData = (baseTxData + referralTag) as `0x${string}`;
+        console.log('Divvi referral tag added to upgrade transaction');
+      } catch (referralError) {
+        console.warn('Referral setup failed for upgrade:', referralError);
+      }
+
+      let gasEstimate;
+      try {
+        gasEstimate = await publicClient.estimateGas({
+          account: address,
+          to: ENB_MINI_APP_ADDRESS,
+          data: finalTxData
+        });
+      } catch {
+        gasEstimate = BigInt(100000); // fallback
+      }
+
+      let txHash: `0x${string}`;
+
+      if (window.ethereum) {
+        const txParams = {
+          from: address as `0x${string}`,
+          to: ENB_MINI_APP_ADDRESS as `0x${string}`,
+          data: finalTxData,
+          gas: `0x${gasEstimate.toString(16)}` as `0x${string}`
+        };
+
+        txHash = await (window.ethereum as EIP1193Provider).request({
+          method: 'eth_sendTransaction',
+          params: [txParams]
+        }) as `0x${string}`;
+      } else {
+        txHash = await writeContractAsync({
+          address: ENB_MINI_APP_ADDRESS,
+          abi: ENB_MINI_APP_ABI,
+          functionName: 'upgradeMembership',
+          args: [address, targetLevel]
+        }) as `0x${string}`;
+      }
+
+      if (walletClient && referralTag && txHash) {
+        try {
+          const chainId = await walletClient.getChainId();
+          await submitReferral({ txHash, chainId });
+          console.log('Divvi referral submitted for upgrade');
+        } catch (referralError) {
+          console.warn('Referral submission failed for upgrade:', referralError);
+        }
+      }
 
       const res = await fetch(`${API_BASE_URL}/api/update-membership`, {
         method: 'POST',
@@ -525,6 +694,18 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                   {profile.invitationUsage.totalUses} of {profile.invitationUsage.maxUses} uses
                 </div>
               </div>
+              <button
+                disabled={true}
+                className="w-full px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed disabled:opacity-60"
+              >
+                Claim $ENB for your invites
+              </button>
+              <button
+                disabled={true}
+                className="w-full px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed disabled:opacity-60"
+              >
+                Claim $ENB for your invites
+              </button>
             </div>
           </div>
         )}
@@ -613,7 +794,9 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
                   <p className="text-sm mt-1">
                     • You need ETH in your wallet to pay for gas fees<br/>
                     • You need ENB tokens in your wallet: 5,000 ENB for Super Based, 15,000 ENB for Legendary<br/>
-                    • No tokens are transferred - only your balance is checked
+                    • No tokens are transferred - only your balance is checked<br/>
+                    • Based → Super Based: {profile.membershipLevel === 'Based' ? `${profile.consecutiveDays}/14` : '14/14'} consecutive days<br/>
+                    • Super Based → Legendary: {profile.membershipLevel === 'Super Based' ? `${profile.consecutiveDays}/28` : '28/28'} consecutive days
                   </p>
                 </div>
               </div>
@@ -645,13 +828,29 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
               </div>
             )}
             
-            <button
-              disabled={upgradeLoading}
-              onClick={handleUpgrade}
-              className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-60"
-            >
-              {upgradeLoading ? 'Upgrading...' : 'Upgrade Mining Level'}
-            </button>
+            {(() => {
+              const requiredDays = profile.membershipLevel === 'Based' ? 14 : profile.membershipLevel === 'Super Based' ? 28 : 0;
+              const canUpgrade = profile.membershipLevel !== 'Legendary' && profile.consecutiveDays >= requiredDays;
+              
+              return (
+                <button
+                  disabled={upgradeLoading || !canUpgrade}
+                  onClick={handleUpgrade}
+                  className={`w-full px-4 py-2 rounded-lg font-medium transition-colors ${
+                    canUpgrade && !upgradeLoading
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  } disabled:opacity-60`}
+                >
+                  {upgradeLoading 
+                    ? 'Upgrading...' 
+                    : !canUpgrade 
+                    ? `Need ${requiredDays} consecutive days (${profile.consecutiveDays}/${requiredDays})`
+                    : 'Upgrade Mining Level'
+                  }
+                </button>
+              );
+            })()}
           </div>
           <br />
           <div className="space-y-3">
@@ -757,10 +956,20 @@ export const Account: React.FC<AccountProps> = ({ setActiveTabAction }) => {
               <p className="text-gray-600 dark:text-gray-400">
                 On the Base Layer there are 3 levels to earn and each level has the daily earning
               </p>
-		<ul>
-		  <li>Based - On this level(the first level) you earn 5 $ENB a day</li>
-		  <li>Super Based - As a Super Based member you earn 10 $ENB. To upgrade to super based you need a balance of 5000 $ENB in your wallet</li>
-		  <li>Legendary - The Legendary is the highest level allowing you to earn 15 $ENB everyday. To upgrade to Legendary your wallet should have 15,000 $ENB</li>
+		<ul className="text-left space-y-2 mt-3">
+		  <li>• <strong>Based</strong> - On this level (the first level) you earn 5 $ENB a day</li>
+		  <li>• <strong>Super Based</strong> - As a Super Based member you earn 10 $ENB. To upgrade to Super Based you need:
+		    <ul className="ml-4 mt-1 space-y-1">
+		      <li>- 5,000 $ENB in your wallet</li>
+		      <li>- 14 consecutive days of daily claims</li>
+		    </ul>
+		  </li>
+		  <li>• <strong>Legendary</strong> - The Legendary is the highest level allowing you to earn 15 $ENB everyday. To upgrade to Legendary you need:
+		    <ul className="ml-4 mt-1 space-y-1">
+		      <li>- 15,000 $ENB in your wallet</li>
+		      <li>- 28 consecutive days of daily claims</li>
+		    </ul>
+		  </li>
 		</ul>
             </div>
             <div className="flex justify-center space-x-4">
